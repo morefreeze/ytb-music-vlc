@@ -1,0 +1,6 @@
+# YouTube Music VLC Player Requirements
+# Required dependencies
+yt-dlp>=2024.01.01
+
+# Optional dependencies (enhanced features)
+rich>=13.7.0

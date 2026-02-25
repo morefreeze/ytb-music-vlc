@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# VLC
+*.tmp
+*.log
+*.cache
+
+# Playlists (optional - uncomment to ignore generated playlists)
+# *.xspf
+# *.m3u
+# *.m3u8
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+
+# Downloaded media
+*.mp3
+*.mp4
+*.webm
+*.m4a
+
+# Configuration (optional)
+*.env
+*.json
+*.yaml
+*.yml
