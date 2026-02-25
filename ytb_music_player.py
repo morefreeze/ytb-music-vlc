@@ -177,7 +177,7 @@ def play_with_vlc(stream_url, video_title, vlc_args=None):
         print(f"❌ Error playing stream: {e}", file=sys.stderr)
         return False
 
-def search_music(query, max_results=5, cookies=None, browser=None, search_videos=False):
+def search_music(query, max_results=5, cookies=None, browser=None, include_videos=False):
     """Search YouTube Music and return results"""
     ytdlp = get_ytdlp_path()
     if not ytdlp:
@@ -191,8 +191,8 @@ def search_music(query, max_results=5, cookies=None, browser=None, search_videos
         '--no-playlist'
     ]
 
-    if search_videos:
-        # Search for regular YouTube videos
+    if include_videos:
+        # Search for all YouTube content (music and videos)
         cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
     else:
         # Search specifically for YouTube Music tracks
@@ -600,8 +600,8 @@ Examples:
   Search and save results to playlist with duplicate handling:
     %(prog)s --search "80s hits" --save-playlist my_80s_hits.xspf --sort views
 
-  Search for YouTube videos instead of music:
-    %(prog)s --search "lo-fi hip hop radio" --video
+  Search YouTube including videos (will still extract audio):
+    %(prog)s --search "lo-fi hip hop radio" --include-videos
 
   Play with higher quality audio:
     %(prog)s https://music.youtube.com/watch?v=abc123 --quality "bestaudio[abr>192]/bestaudio"
@@ -647,8 +647,8 @@ Examples:
                        help='Playlist format for saving or temporary playlists (default: xspf)')
     parser.add_argument('--sort', choices=['views', 'duration', 'upload_date'],
                        help='Sort search results by specified field (views: highest to lowest, duration: longest to shortest, upload_date: newest to oldest)')
-    parser.add_argument('--video', action='store_true',
-                       help='Search for YouTube videos instead of YouTube Music audio tracks (default: search YouTube Music)')
+    parser.add_argument('--include-videos', action='store_true',
+                       help='Include YouTube videos in search results (not just music tracks). Will still extract audio for playback.')
 
     args = parser.parse_args()
 
@@ -717,9 +717,9 @@ Examples:
         print(f"🎵 Playing videos {start_idx} to {end_idx} (total: {len(playlist_videos)})")
 
     elif args.search:
-        if args.video:
-            print(f"🔍 Searching YouTube Videos for: {args.search}")
-            results = search_music(args.search, args.max_results, args.cookies, args.browser, search_videos=True)
+        if args.include_videos:
+            print(f"🔍 Searching YouTube (including videos) for: {args.search}")
+            results = search_music(args.search, args.max_results, args.cookies, args.browser, include_videos=True)
         else:
             print(f"🔍 Searching YouTube Music for: {args.search}")
             results = search_music(args.search, args.max_results, args.cookies, args.browser)
