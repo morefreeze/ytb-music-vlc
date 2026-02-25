@@ -517,7 +517,7 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
         cmd = [vlc, '--play-and-exit']
         cmd.extend(vlc_args)
 
-        # Add shuffle and repeat options to VLC if requested
+        # Add shuffle and repeat options to VLC if requested - this shuffles playback order after selection/sorting
         if args.shuffle:
             cmd.extend(['--shuffle'])
         if args.repeat:
@@ -646,7 +646,7 @@ Examples:
     parser.add_argument('--list-formats', action='store_true',
                        help='List available formats and exit')
     parser.add_argument('--shuffle', action='store_true',
-                       help='Shuffle playlist before playing')
+                       help='Shuffle playlist playback order after selection and sorting')
     parser.add_argument('--repeat', action='store_true',
                        help='Repeat playlist playback')
     parser.add_argument('--playlist-start', type=int, default=0,
@@ -688,7 +688,7 @@ Examples:
             sys.exit(1)
         print(f"✅ Loaded playlist with {len(playlist_videos)} tracks")
 
-        # Apply shuffle if requested
+        # Apply shuffle - this shuffles playback order after selection/sorting if requested - this shuffles playback order after selection/sorting
         if args.shuffle:
             import random
             random.shuffle(playlist_videos)
@@ -706,7 +706,7 @@ Examples:
             sys.exit(1)
         print(f"📝 Found {len(playlist_videos)} videos in playlist")
 
-        # Apply shuffle
+        # Apply shuffle - this shuffles playback order after selection/sorting
         if args.shuffle:
             import random
             random.shuffle(playlist_videos)
@@ -749,7 +749,7 @@ Examples:
             print("❌ Valid search results found after filtering")
             sys.exit(1)
 
-        # Sort results if requested
+        # Sort results if requested - this only affects display order
         if args.sort:
             print(f"📊 Sorting results by: {args.sort}")
             if args.sort == 'views':
