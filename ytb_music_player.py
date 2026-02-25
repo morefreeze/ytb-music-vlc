@@ -191,13 +191,12 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         '--no-playlist'
     ]
 
-    if include_videos:
-        # Search for all YouTube content (music and videos)
-        cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
-    else:
-        # Search specifically for YouTube Music tracks
-        cmd.extend([f'youtube Music:{query}', '--default-search', 'ytsearch'])
-        cmd.extend(['--extract-audio', '--audio-format', 'mp3'])  # These flags help prioritize audio tracks
+    # Use consistent format for both search types
+    cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
+
+    # For YouTube Music only search, filter to audio tracks
+    if not include_videos:
+        cmd.extend(['--extract-audio', '--audio-format', 'mp3'])
 
     if browser:
         browser_parts = browser.split(':', 1)
@@ -209,7 +208,14 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         cmd.extend(['--cookies', cookies])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+        # Print debug output
+        if result.returncode != 0:
+            print(f"⚠️ Command returned non-zero exit code: {result.returncode}")
+            if result.stderr:
+                print(f"ℹ️ Stderr output: {result.stderr[:500]}...")
+
         # ytsearch returns multiple JSON objects, one per line
         results = []
         for line in result.stdout.strip().split('\n'):
@@ -218,7 +224,12 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
                     results.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue
-        return results
+
+        # Debug: Print number of results returned
+        print(f"🔍 Found {len(results)} results")
+
+        # Always return at least the number of results requested (or as many as available)
+        return results[:max_results]
     except subprocess.CalledProcessError as e:
         print(f"❌ Error searching: {e.stderr}", file=sys.stderr)
         return None
