@@ -909,6 +909,14 @@ Examples:
                 SimpleColor.print_magenta(views_str)
             print()
 
+        # Check if keyboard module is available
+        has_keyboard = False
+        try:
+            import keyboard
+            has_keyboard = True
+        except ImportError:
+            pass
+
         # Let user select
         print("\n🎵 Search Results:")
         print("-" * 80)
@@ -951,26 +959,27 @@ Examples:
                 SimpleColor.print_magenta(views_str)
             print()
 
-        # Offer space selection mode if available
-        while True:
-            try:
-                # First ask if they want to use space selection
-                use_space = input("\nWould you like to use space bar selection mode? (y/N): ").strip().lower()
-                if use_space in ['y', 'yes']:
-                    selected_tracks = select_tracks_with_space(results)
-                    if selected_tracks and len(selected_tracks) > 0:
-                        # Create playlist from selected tracks
-                        playlist_videos = []
-                        for track in selected_tracks:
-                            playlist_videos.append({
-                                'webpage_url': track.get('webpage_url') or track.get('url'),
-                                'title': track.get('title', 'Unknown Title')
-                            })
-                        print(f"\n▶️ Selected {len(playlist_videos)} tracks to play as playlist")
-                        break
-                    # Fall through to regular selection if space selection failed or was cancelled
+        # Try to use TUI space selection mode first if available
+        if has_keyboard:
+            selected_tracks = select_tracks_with_space(results)
+            if selected_tracks and len(selected_tracks) > 0:
+                # Create playlist from selected tracks
+                playlist_videos = []
+                for track in selected_tracks:
+                    playlist_videos.append({
+                        'webpage_url': track.get('webpage_url') or track.get('url'),
+                        'title': track.get('title', 'Unknown Title')
+                    })
+                print(f"\n▶️ Selected {len(playlist_videos)} tracks to play as playlist")
+            else:
+                # Fall back to regular selection if space selection was cancelled
+                playlist_videos = None
+        else:
+            playlist_videos = None
 
-                # Regular number-based selection
+        # Regular number-based selection fallback
+        while playlist_videos is None:
+            try:
                 selection = input("Select tracks to play (space-separated numbers like '1 3 5', 'all' for all, 'q' to quit): ").strip()
                 if selection.lower() == 'q':
                     sys.exit(0)

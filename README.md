@@ -95,6 +95,20 @@ chmod +x ytb_music_player.py
 
 ## Quick Start
 
+### Selection Modes
+
+**Space Selection Mode (Automatic if available)**:
+- If `keyboard` module is installed, the app automatically uses TUI selection mode
+- Use UP/DOWN arrows to navigate through results
+- Press SPACE to select/deselect tracks
+- Press ENTER to confirm your selection
+- Press ESC to cancel and return to number selection
+
+**Number Selection Mode (Default)**:
+- If `keyboard` module is not installed, use classic number-based selection
+- Enter space-separated numbers to select multiple tracks
+- Type 'all' to select all tracks
+
 ### Search and Play Music
 
 ```bash
