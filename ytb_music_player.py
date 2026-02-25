@@ -477,11 +477,23 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
 
         # Save playlist if requested
         if args.save_playlist:
-            if args.playlist_format == 'xspf':
-                generate_xspf_playlist(tracks_with_streams, args.save_playlist)
+            save_path = args.save_playlist
+            if os.path.exists(save_path):
+                save_path = handle_duplicate_file(save_path)
+                if not save_path:
+                    print("ℹ️ Save operation cancelled by user")
+                else:
+                    if args.playlist_format == 'xspf':
+                        generate_xspf_playlist(tracks_with_streams, save_path)
+                    else:
+                        generate_m3u_playlist(tracks_with_streams, save_path)
+                    print(f"💾 Playlist saved to {save_path}")
             else:
-                generate_m3u_playlist(tracks_with_streams, args.save_playlist)
-            print(f"💾 Playlist saved to {args.save_playlist}")
+                if args.playlist_format == 'xspf':
+                    generate_xspf_playlist(tracks_with_streams, save_path)
+                else:
+                    generate_m3u_playlist(tracks_with_streams, save_path)
+                print(f"💾 Playlist saved to {save_path}")
 
         # Launch VLC with the playlist
         vlc = get_vlc_path()
@@ -526,6 +538,37 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
         if os.path.exists(temp_playlist):
             os.unlink(temp_playlist)
 
+def handle_duplicate_file(file_path):
+    """Handle duplicate files by prompting user for action"""
+    while True:
+        print(f"⚠️ File already exists: {file_path}")
+        print("What would you like to do?")
+        print("1. Overwrite existing file")
+        print("2. Save with auto-incremented suffix (e.g., filename_1.ext)")
+        print("3. Cancel save operation")
+
+        choice = input("Enter your choice (1/2/3): ").strip()
+
+        if choice == '1':
+            # Overwrite
+            return file_path
+        elif choice == '2':
+            # Auto-increment suffix
+            base, ext = os.path.splitext(file_path)
+            counter = 1
+            new_path = f"{base}_{counter}{ext}"
+            while os.path.exists(new_path):
+                counter += 1
+                new_path = f"{base}_{counter}{ext}"
+            print(f"📝 Will save as: {new_path}")
+            return new_path
+        elif choice == '3':
+            # Cancel
+            return None
+        else:
+            print("❌ Invalid choice. Please enter 1, 2, or 3.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='YouTube Music Player via VLC',
@@ -541,6 +584,15 @@ Examples:
 
   Search and play:
     %(prog)s --search "Taylor Shake It Off"
+
+  Search and sort by views (most popular first):
+    %(prog)s --search "chill lo-fi" --sort views
+
+  Search and sort by duration (longest first):
+    %(prog)s --search "classical music" --sort duration
+
+  Search and save results to playlist with duplicate handling:
+    %(prog)s --search "80s hits" --save-playlist my_80s_hits.xspf --sort views
 
   Play with higher quality audio:
     %(prog)s https://music.youtube.com/watch?v=abc123 --quality "bestaudio[abr>192]/bestaudio"
@@ -584,6 +636,8 @@ Examples:
     parser.add_argument('--save-playlist', help='Save generated playlist to file')
     parser.add_argument('--playlist-format', choices=['m3u', 'xspf'], default='xspf',
                        help='Playlist format for saving or temporary playlists (default: xspf)')
+    parser.add_argument('--sort', choices=['views', 'duration', 'upload_date'],
+                       help='Sort search results by specified field (views: highest to lowest, duration: longest to shortest, upload_date: newest to oldest)')
 
     args = parser.parse_args()
 
@@ -668,6 +722,22 @@ Examples:
         if not results:
             print("❌ Valid search results found after filtering")
             sys.exit(1)
+
+        # Sort results if requested
+        if args.sort:
+            print(f"📊 Sorting results by: {args.sort}")
+            if args.sort == 'views':
+                # Sort by view count (highest to lowest)
+                results.sort(key=lambda x: x.get('view_count', 0), reverse=True)
+            elif args.sort == 'duration':
+                # Sort by duration (longest to shortest)
+                results.sort(key=lambda x: x.get('duration', 0), reverse=True)
+            elif args.sort == 'upload_date':
+                # Sort by upload date (newest to oldest)
+                results.sort(key=lambda x: x.get('upload_date', ''), reverse=True)
+                # Fallback to release_timestamp if upload_date is not available
+                if not all(r.get('upload_date') for r in results):
+                    results.sort(key=lambda x: x.get('release_timestamp', 0), reverse=True)
 
         print("\n🎵 Search Results:")
         print("-" * 80)
@@ -874,11 +944,21 @@ Examples:
             info['stream_url'] = stream_url
 
             # Save playlist in requested format
+            save_path = args.save_playlist
+            if os.path.exists(save_path):
+                save_path = handle_duplicate_file(save_path)
+                if not save_path:
+                    print("ℹ️ Save operation cancelled by user")
+                    # Still proceed with playback
+                    print("\n▶️ Starting playback...")
+                    success = play_with_vlc(stream_url, info.get('title', 'YouTube Music'), vlc_args)
+                    return
+
             if args.playlist_format == 'xspf':
-                generate_xspf_playlist([info], args.save_playlist)
+                generate_xspf_playlist([info], save_path)
             else:
-                generate_m3u_playlist([info], args.save_playlist)
-            print(f"✅ Playlist saved successfully")
+                generate_m3u_playlist([info], save_path)
+            print(f"✅ Playlist saved to {save_path}")
 
             # Playback after saving
             print("\n▶️ Starting playback...")
