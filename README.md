@@ -1,5 +1,7 @@
 # YouTube Music VLC Player
 
+Version: 1.2.0
+
 A command-line tool to search, stream, and play YouTube Music using VLC media player. This tool provides a seamless way to enjoy YouTube Music with proper playlist support and full VLC integration.
 
 ## Features
@@ -11,6 +13,10 @@ A command-line tool to search, stream, and play YouTube Music using VLC media pl
 - 🎛️ **Playback Controls**: Support for shuffle, repeat, volume control, and audio-only mode
 - 🎨 **Colorful Output**: Beautiful terminal output with rich text formatting
 - 📱 **Cookie Support**: Use browser cookies or cookie files for premium access
+- 🔀 **Search Results Sorting**: Sort results by views, duration, or upload date
+- 💾 **Duplicate File Handling**: Smart handling of duplicate filenames when saving playlists
+- 🎯 **TUI Space Selection**: Select multiple tracks using space bar with arrow keys (optional)
+- 🛡️ **Graceful Fallback**: Automatically falls back to number-based selection when dependencies are missing
 
 ## Prerequisites
 
@@ -25,10 +31,23 @@ Before using YouTube Music VLC Player, you need to install the following depende
 ### Optional Dependencies
 
 - **rich**: For enhanced terminal output with colors and formatting
+- **keyboard**: For TUI space selection functionality (multi-track selection using space bar)
 
 ## Installation
 
 ### 1. Install Required Software
+
+### 2. Install Optional Features
+
+For enhanced space selection functionality:
+```bash
+pip install keyboard
+```
+
+For improved terminal formatting:
+```bash
+pip install rich
+```
 
 #### macOS
 ```bash

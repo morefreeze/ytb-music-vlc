@@ -2,6 +2,11 @@
 """
 YouTube Music Player via VLC
 Play YouTube Music directly from command line using VLC and yt-dlp
+
+Version: 1.2.0
+
+Optional Dependencies:
+- keyboard: For TUI space selection functionality
 """
 
 import os
@@ -12,6 +17,7 @@ import tempfile
 import json
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+import time
 
 # Try to import rich, gracefully fall back if not available
 try:
@@ -586,6 +592,100 @@ def handle_duplicate_file(file_path):
             print("❌ Invalid choice. Please enter 1, 2, or 3.")
 
 
+def select_tracks_with_space(results):
+    """Allow user to select multiple tracks using space bar (TUI mode)"""
+    try:
+        import keyboard
+    except ImportError:
+        print("❌ keyboard module not found. Please install it with 'pip install keyboard' for space selection feature.")
+        return None
+
+    print("\n🎵 Search Results - Space Selection Mode")
+    print("-" * 80)
+    print("Use SPACE to select/deselect tracks, ENTER to confirm selection")
+    print("Press ESC to cancel and return to regular selection mode")
+    print("-" * 80)
+
+    selected = []
+    max_index = len(results)
+    current_index = 0
+
+    def draw_selection():
+        """Draw the selection interface"""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print("\n🎵 Search Results - Space Selection Mode")
+        print("-" * 80)
+        print("Use SPACE to select/deselect tracks, ENTER to confirm selection")
+        print("Press ESC to cancel and return to regular selection mode")
+        print("-" * 80)
+        for i, result in enumerate(results):
+            title = result.get('title', 'Unknown Title')
+            channel = result.get('uploader', 'Unknown Artist')
+            duration = result.get('duration', 0)
+
+            # Format duration
+            if duration:
+                minutes = duration // 60
+                seconds = duration % 60
+                duration_str = f"{minutes}:{seconds:02d}"
+            else:
+                duration_str = "N/A"
+
+            # Format selection indicators
+            prefix = " "
+            if i in selected:
+                prefix = "✅"
+            if i == current_index:
+                prefix = f"[{prefix}]" if prefix == "✅" else f"[{i+1:2d}]"
+            else:
+                prefix = f" {prefix} " if prefix == "✅" else f" {i+1:2d} "
+
+            # Print track info
+            if i == current_index:
+                print(f"{prefix} 👉 {title} - {channel} ({duration_str})")
+            else:
+                print(f"{prefix}    {title} - {channel} ({duration_str})")
+        print("-" * 80)
+        print(f"Selected tracks: {len(selected)}")
+
+    draw_selection()
+
+    try:
+        while True:
+            if keyboard.is_pressed('up'):
+                current_index = max(0, current_index - 1)
+                draw_selection()
+                time.sleep(0.15)
+            elif keyboard.is_pressed('down'):
+                current_index = min(max_index - 1, current_index + 1)
+                draw_selection()
+                time.sleep(0.15)
+            elif keyboard.is_pressed('space'):
+                if current_index in selected:
+                    selected.remove(current_index)
+                else:
+                    selected.append(current_index)
+                draw_selection()
+                time.sleep(0.2)
+            elif keyboard.is_pressed('enter'):
+                if not selected:
+                    print("⚠️ No tracks selected. Please select at least one track.")
+                    time.sleep(1)
+                    continue
+                break
+            elif keyboard.is_pressed('esc'):
+                print("\n⏹️ Cancelled space selection mode")
+                return None
+            time.sleep(0.05)
+    except KeyboardInterrupt:
+        print("\n⏹️ Selection cancelled by user")
+        return None
+
+    # Return sorted selection
+    selected.sort()
+    return [results[i] for i in selected]
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='YouTube Music Player via VLC',
@@ -613,6 +713,9 @@ Examples:
 
   Search YouTube including videos (will still extract audio):
     %(prog)s --search "lo-fi hip hop radio" --include-videos
+
+  Install optional TUI dependencies for space bar selection:
+    pip install keyboard
 
   Play with higher quality audio:
     %(prog)s https://music.youtube.com/watch?v=abc123 --quality "bestaudio[abr>192]/bestaudio"
@@ -807,9 +910,68 @@ Examples:
             print()
 
         # Let user select
+        print("\n🎵 Search Results:")
+        print("-" * 80)
+        for i, result in enumerate(results, 1):
+            title = result.get('title', 'Unknown Title')
+            channel = result.get('uploader', 'Unknown Artist')
+            duration = result.get('duration', 0)
+            views = result.get('view_count', 0)
+
+            # Format duration
+            if duration:
+                minutes = duration // 60
+                seconds = duration % 60
+                duration_str = f"{minutes}:{seconds:02d}"
+            else:
+                duration_str = "N/A"
+
+            # Format views
+            if views >= 1000000:
+                views_str = f"{views/1000000:.1f}M"
+            elif views >= 1000:
+                views_str = f"{views/1000:.1f}K"
+            else:
+                views_str = str(views)
+
+            # Print with appropriate coloring
+            if has_rich:
+                console = Console()
+                console.print(f"{i:2d}. [bold cyan]{title}[/bold cyan]")
+                console.print(f"    Artist: [green]{channel}[/green]")
+                console.print(f"    Duration: [yellow]{duration_str}[/yellow] | Views: [magenta]{views_str}[/magenta]")
+            else:
+                print(f"{i:2d}. ", end="")
+                SimpleColor.print_bold_cyan(title)
+                print(f"    Artist: ", end="")
+                SimpleColor.print_green(channel)
+                print(f"    Duration: ", end="")
+                SimpleColor.print_yellow(duration_str)
+                print(f" | Views: ", end="")
+                SimpleColor.print_magenta(views_str)
+            print()
+
+        # Offer space selection mode if available
         while True:
             try:
-                selection = input(f"Select tracks to play (space-separated numbers like '1 3 5', 'all' for all, 'q' to quit): ").strip()
+                # First ask if they want to use space selection
+                use_space = input("\nWould you like to use space bar selection mode? (y/N): ").strip().lower()
+                if use_space in ['y', 'yes']:
+                    selected_tracks = select_tracks_with_space(results)
+                    if selected_tracks and len(selected_tracks) > 0:
+                        # Create playlist from selected tracks
+                        playlist_videos = []
+                        for track in selected_tracks:
+                            playlist_videos.append({
+                                'webpage_url': track.get('webpage_url') or track.get('url'),
+                                'title': track.get('title', 'Unknown Title')
+                            })
+                        print(f"\n▶️ Selected {len(playlist_videos)} tracks to play as playlist")
+                        break
+                    # Fall through to regular selection if space selection failed or was cancelled
+
+                # Regular number-based selection
+                selection = input("Select tracks to play (space-separated numbers like '1 3 5', 'all' for all, 'q' to quit): ").strip()
                 if selection.lower() == 'q':
                     sys.exit(0)
                 if selection.lower() == 'all':

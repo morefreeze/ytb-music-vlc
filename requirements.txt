@@ -1,6 +1,10 @@
-# YouTube Music VLC Player Requirements
-# Required dependencies
-yt-dlp>=2024.01.01
+# YouTube Music VLC Player - Dependencies
 
-# Optional dependencies (enhanced features)
-rich>=13.7.0
+# Required dependencies
+# vlc: Install via system package manager (brew, apt, or manual download)
+# yt-dlp: Install via pip or system package manager
+# yt-dlp>=2024.0.0
+
+# Optional dependencies
+keyboard>=0.13.5  # For TUI space selection feature
+rich>=13.7.0      # For enhanced terminal output formatting
