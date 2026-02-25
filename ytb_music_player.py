@@ -917,48 +917,6 @@ Examples:
         except ImportError:
             pass
 
-        # Let user select
-        print("\n🎵 Search Results:")
-        print("-" * 80)
-        for i, result in enumerate(results, 1):
-            title = result.get('title', 'Unknown Title')
-            channel = result.get('uploader', 'Unknown Artist')
-            duration = result.get('duration', 0)
-            views = result.get('view_count', 0)
-
-            # Format duration
-            if duration:
-                minutes = duration // 60
-                seconds = duration % 60
-                duration_str = f"{minutes}:{seconds:02d}"
-            else:
-                duration_str = "N/A"
-
-            # Format views
-            if views >= 1000000:
-                views_str = f"{views/1000000:.1f}M"
-            elif views >= 1000:
-                views_str = f"{views/1000:.1f}K"
-            else:
-                views_str = str(views)
-
-            # Print with appropriate coloring
-            if has_rich:
-                console = Console()
-                console.print(f"{i:2d}. [bold cyan]{title}[/bold cyan]")
-                console.print(f"    Artist: [green]{channel}[/green]")
-                console.print(f"    Duration: [yellow]{duration_str}[/yellow] | Views: [magenta]{views_str}[/magenta]")
-            else:
-                print(f"{i:2d}. ", end="")
-                SimpleColor.print_bold_cyan(title)
-                print(f"    Artist: ", end="")
-                SimpleColor.print_green(channel)
-                print(f"    Duration: ", end="")
-                SimpleColor.print_yellow(duration_str)
-                print(f" | Views: ", end="")
-                SimpleColor.print_magenta(views_str)
-            print()
-
         # Try to use TUI space selection mode first if available
         if has_keyboard:
             selected_tracks = select_tracks_with_space(results)
