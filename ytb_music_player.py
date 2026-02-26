@@ -185,6 +185,9 @@ def play_with_vlc(stream_url, video_title, vlc_args=None):
 
 def search_music(query, max_results=5, cookies=None, browser=None, include_videos=False):
     """Search YouTube Music and return results"""
+    import time
+    start_time = time.time()
+
     ytdlp = get_ytdlp_path()
     if not ytdlp:
         print("❌ Error: yt-dlp not found in PATH", file=sys.stderr)
@@ -194,15 +197,21 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         ytdlp,
         '--ignore-config',
         '-j',
-        '--no-playlist'
+        '--no-playlist',
+        '--skip-download',
+        '--no-check-certificate',
+        '--no-warnings',
+        '--no-check-formats',
+        '--lazy-playlist',
+        '--simulate',
+        '--retries', '3',
+        '--fragment-retries', '2',
+        '--socket-timeout', '10',
+        '--buffer-size', '16K'
     ]
 
     # Use consistent format for both search types
     cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
-
-    # For YouTube Music only search, filter to audio tracks
-    if not include_videos:
-        cmd.extend(['--extract-audio', '--audio-format', 'mp3'])
 
     if browser:
         browser_parts = browser.split(':', 1)
@@ -214,6 +223,9 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         cmd.extend(['--cookies', cookies])
 
     try:
+        print(f"📡 Searching YouTube Music (query: '{query}', max_results: {max_results})...")
+
+        print(f"ℹ️ Executing command: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
         # Print debug output
@@ -222,16 +234,30 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
             if result.stderr:
                 print(f"ℹ️ Stderr output: {result.stderr[:500]}...")
 
-        # ytsearch returns multiple JSON objects, one per line
+        # ytsearch returns JSON objects, one per line
         results = []
         for line in result.stdout.strip().split('\n'):
             if line:
                 try:
-                    results.append(json.loads(line))
-                except json.JSONDecodeError:
+                    data = json.loads(line)
+                    # Filter to only the fields we need to minimize memory usage
+                    filtered = {
+                        'id': data.get('id'),
+                        'title': data.get('title'),
+                        'uploader': data.get('uploader'),
+                        'duration': data.get('duration', 0),
+                        'view_count': data.get('view_count', 0),
+                        'webpage_url': data.get('webpage_url'),
+                        'url': data.get('url')
+                    }
+                    results.append(filtered)
+                except json.JSONDecodeError as e:
+                    print(f"⚠️  Failed to parse JSON line: {e}")
+                    print(f"   Line content: {repr(line)}")
                     continue
 
-        # Debug: Print number of results returned
+        search_time = time.time() - start_time
+        print(f"✅ Search completed in {search_time:.2f} seconds")
         print(f"🔍 Found {len(results)} results")
 
         # Always return at least the number of results requested (or as many as available)
@@ -744,8 +770,8 @@ Examples:
     parser.add_argument('--fullscreen', action='store_true',
                        help='Start VLC in fullscreen mode (when video is available)')
     parser.add_argument('--volume', type=int, help='Set initial volume (0-100)')
-    parser.add_argument('--max-results', type=int, default=15,
-                       help='Maximum search results to show (default: 15)')
+    parser.add_argument('--max-results', type=int, default=10,
+                       help='Maximum search results to show (default: 10)')
     parser.add_argument('--list-formats', action='store_true',
                        help='List available formats and exit')
     parser.add_argument('--shuffle', action='store_true',
@@ -919,6 +945,7 @@ Examples:
 
         # Try to use TUI space selection mode first if available
         if has_keyboard:
+            input("\n--- Press Enter to continue to interactive selection ---")
             selected_tracks = select_tracks_with_space(results)
             if selected_tracks and len(selected_tracks) > 0:
                 # Create playlist from selected tracks
