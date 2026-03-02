@@ -19,6 +19,7 @@ import json
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Try to import rich, gracefully fall back if not available
 try:
@@ -27,6 +28,28 @@ try:
     has_rich = True
 except ImportError:
     has_rich = False
+
+def process_track_info(entry, include_videos=False):
+    """Process individual track information from search results"""
+    try:
+        data = json.loads(entry)
+
+        # Skip videos if not included
+        if not include_videos and data.get('duration', 0) > 3600:
+            return None
+
+        filtered = {
+            'id': data.get('id'),
+            'title': data.get('title'),
+            'uploader': data.get('uploader'),
+            'duration': data.get('duration', 0),
+            'view_count': data.get('view_count', 0),
+            'webpage_url': data.get('webpage_url'),
+            'url': data.get('url')
+        }
+        return filtered
+    except json.JSONDecodeError:
+        return None
 
 # Simple color support for terminals without rich
 class SimpleColor:
@@ -229,42 +252,29 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
     try:
         if debug:
             print(f"ℹ️ Executing command: {' '.join(cmd)}")
-        
+
         # Add a timeout to the subprocess call
         result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
 
         if debug and result.stderr:
             print(f"--- yt-dlp debug output (stderr) ---\n{result.stderr}\n------------------------------------")
-        
+
         if result.returncode != 0:
             if not debug and result.stderr:
                 pass
 
-        results = []
+        # Get raw entries from output
+        entries = []
         for line in result.stdout.strip().split('\n'):
             if line:
-                try:
-                    data = json.loads(line)
-                    filtered = {
-                        'id': data.get('id'),
-                        'title': data.get('title'),
-                        'uploader': data.get('uploader'),
-                        'duration': data.get('duration', 0),
-                        'view_count': data.get('view_count', 0),
-                        'webpage_url': data.get('webpage_url'),
-                        'url': data.get('url')
-                    }
-                    results.append(filtered)
-                except json.JSONDecodeError as e:
-                    print(f"⚠️  Failed to parse JSON line: {e}")
-                    print(f"   Line content: {repr(line)}")
-                    continue
+                entries.append(line)
 
         search_time = time.time() - start_time
         print(f"✅ Search completed in {search_time:.2f} seconds")
-        print(f"🔍 Found {len(results)} results")
+        print(f"🔍 Found {len(entries)} results")
 
-        return results[:max_results]
+        # Return raw entries for parallel processing later
+        return entries[:max_results]
     except subprocess.TimeoutExpired:
         print("❌ Error: yt-dlp command timed out after 60 seconds. This might be a network issue or a problem with yt-dlp itself.", file=sys.stderr)
         return None
@@ -1104,6 +1114,36 @@ Examples:
             print("   - Your browser cookies are not accessible")
             print("   - Your network IP is blocked by YouTube")
             sys.exit(1)
+
+        # Process entries in parallel when showing results
+        if results:
+            print(f"📊 Processing {len(results)} results...")
+            processed_results = []
+            with ThreadPoolExecutor(max_workers=min(5, len(results))) as executor:
+                # Submit all tasks
+                future_to_entry = {executor.submit(process_track_info, entry, args.include_videos): entry for entry in results}
+
+                # Process completed tasks with progress display
+                completed = 0
+                total = len(results)
+
+                for future in as_completed(future_to_entry):
+                    completed += 1
+                    track_info = future.result()
+                    if track_info:
+                        processed_results.append(track_info)
+
+                    # Show progress
+                    if has_rich and total > 1:
+                        print(f"✅ Processed {completed}/{total} tracks\r", end='')
+                    elif total > 1:
+                        print(f"✅ Processed {completed}/{total} tracks\r", end='')
+
+                # Clear progress line
+                if total > 1:
+                    print(" " * 50 + "\r", end='')
+
+            results = processed_results
 
         # Filter out None entries if any
         results = [r for r in results if r is not None]
