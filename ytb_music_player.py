@@ -626,42 +626,15 @@ def handle_duplicate_file(file_path):
                 counter += 1
                 new_path = f"{base}_{counter}{ext}"
             print(f"📝 Will save as: {new_path}")
-    %(prog)s https://www.youtube.com/playlist?list=abc123
-    %(prog)s https://music.youtube.com/playlist?list=abc123
+            return new_path
+        elif choice == '3':
+            # Cancel
+            return None
+        else:
+            print("❌ Invalid choice. Please enter 1, 2, or 3.")
 
-  Search and play:
-    %(prog)s --search "Taylor Shake It Off"
 
-  Search and sort by views (most popular first):
-    %(prog)s --search "chill lo-fi" --sort views
-
-  Search and sort by duration (longest first):
-    %(prog)s --search "classical music" --sort duration
-
-  Search and save results to playlist with duplicate handling:
-    %(prog)s --search "80s hits" --save-playlist my_80s_hits.xspf --sort views
-
-  Search YouTube including videos (will still extract audio):
-    %(prog)s --search "lo-fi hip hop radio" --include-videos
-
-  Install optional rich for TUI selection:
-    pip install rich readchar
-
-  Play with higher quality audio:
-    %(prog)s https://music.youtube.com/watch?v=abc123 --quality "bestaudio[abr>192]/bestaudio"
-
-  Play with cookies for premium access:
-    %(prog)s https://music.youtube.com/watch?v=abc123 --cookies ~/.config/youtube-dl/cookies.txt
-
-  Play using Chrome browser cookies:
-    %(prog)s https://music.youtube.com/watch?v=abc123 --browser chrome
-    %(prog)s https://music.youtube.com/watch?v=abc123 --browser "chrome:Profile 5"
-        """
-    )
-
-    # Create a group for primary sources (mutually exclusive)
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('url', nargs='?', help='YouTube Music URL (video, track, album, or playlist)')
+def select_tracks_with_space(results):
     group.add_argument('-s', '--search', help='Search YouTube Music by query')
     group.add_argument('--load-playlist', help='Load and play from existing playlist file')
 
