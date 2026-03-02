@@ -94,12 +94,14 @@ def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None, ytd
         '-f', quality,
         '--get-url',
         '--no-playlist',
+        '--remote-components', 'ejs:github',
         url
     ]
 
-    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
-    if cookie_file:
-        cmd.extend(['--cookies', cookie_file])
+    if browser:
+        cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
+        cmd.extend(['--cookies', cookies])
 
     try:
         # Add a timeout to the subprocess call
@@ -127,12 +129,14 @@ def extract_video_info(url, cookies=None, browser=None, ytdlp_path=None):
         '--ignore-config',
         '-j',
         '--no-playlist',
+        '--remote-components', 'ejs:github',
         url
     ]
 
-    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
-    if cookie_file:
-        cmd.extend(['--cookies', cookie_file])
+    if browser:
+        cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
+        cmd.extend(['--cookies', cookies])
 
     try:
         # Add a timeout to the subprocess call
@@ -182,27 +186,6 @@ def play_with_vlc(stream_url, video_title, vlc_args=None):
         print(f"❌ Error playing stream: {e}", file=sys.stderr)
         return False
 
-def handle_cookies_auth(ytdlp_path, browser, cookies, cmd):
-    """Handles cookie authentication by exporting from browser or using a file."""
-    cookie_file = None
-    if browser:
-        temp_cookie_file = os.path.join(tempfile.gettempdir(), f"ytb_music_cookies_{browser.replace(':', '_')}.txt")
-        
-        try:
-            cookie_export_cmd = [
-                ytdlp_path, '--cookies-from-browser', browser, '--cookies', temp_cookie_file
-            ]
-            subprocess.run(cookie_export_cmd, check=True, timeout=20, capture_output=True)
-            cookie_file = temp_cookie_file
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-            if os.path.exists(temp_cookie_file) and os.path.getsize(temp_cookie_file) > 0:
-                cookie_file = temp_cookie_file
-            else:
-                cmd.extend(['--cookies-from-browser', browser])
-    elif cookies:
-        cookie_file = cookies
-        
-    return cookie_file
 
 def search_music(query, max_results=5, cookies=None, browser=None, include_videos=False, debug=False):
     """Search YouTube Music and return results"""
@@ -229,7 +212,8 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         '--retries', '3',
         '--fragment-retries', '2',
         '--socket-timeout', '10',
-        '--buffer-size', '16K'
+        '--buffer-size', '16K',
+        '--remote-components', 'ejs:github'
     ]
 
     if debug:
@@ -237,9 +221,10 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
 
     cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
 
-    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
-    if cookie_file:
-        cmd.extend(['--cookies', cookie_file])
+    if browser:
+        cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
+        cmd.extend(['--cookies', cookies])
 
     try:
         if debug:
@@ -299,11 +284,13 @@ def extract_playlist_urls(playlist_url, cookies=None, browser=None, ytdlp_path=N
         '--ignore-config',
         '-j',
         '--flat-playlist',
+        '--remote-components', 'ejs:github'
     ]
 
-    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
-    if cookie_file:
-        cmd.extend(['--cookies', cookie_file])
+    if browser:
+        cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
+        cmd.extend(['--cookies', cookies])
 
     cmd.append(playlist_url)
 
