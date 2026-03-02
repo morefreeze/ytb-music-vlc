@@ -35,7 +35,8 @@ def process_track_info(entry, include_videos=False):
         data = json.loads(entry)
 
         # Skip videos if not included
-        if not include_videos and data.get('duration', 0) > 3600:
+        duration = data.get('duration')
+        if not include_videos and duration is not None and duration > 3600:
             return None
 
         filtered = {
@@ -104,20 +105,28 @@ def get_vlc_path():
             return candidate
     return None
 
-def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None, ytdlp_path=None):
+def extract_stream_url(url, quality='best', cookies=None, browser=None, ytdlp_path=None, debug=False):
     """Extract stream URL using yt-dlp"""
     ytdlp = ytdlp_path or get_ytdlp_path()
     if not ytdlp:
         print("❌ Error: yt-dlp not found in PATH", file=sys.stderr)
         return None
 
+    # Use a more flexible format selector that works with current YouTube restrictions
+    if quality == 'bestaudio':
+        format_spec = 'bestaudio[ext=m4a]/bestaudio/best'
+    elif quality == 'worstaudio':
+        format_spec = 'worstaudio[ext=m4a]/worstaudio/worst'
+    else:
+        format_spec = quality
+
     cmd = [
         ytdlp,
         '--ignore-config',
-        '-f', quality,
+        '--remote-components', 'ejs:github',
+        '-f', format_spec,
         '--get-url',
         '--no-playlist',
-        '--remote-components', 'ejs:github',
         url
     ]
 
@@ -126,21 +135,37 @@ def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None, ytd
     elif cookies:
         cmd.extend(['--cookies', cookies])
 
+    if debug:
+        print(f"\n[DEBUG] === Stream URL Extraction ===")
+        print(f"[DEBUG] URL: {url}")
+        print(f"[DEBUG] Quality: {quality}")
+        print(f"[DEBUG] Format spec: {format_spec}")
+        print(f"[DEBUG] Command: {' '.join(cmd)}")
+        print(f"[DEBUG] Starting extraction...")
+
     try:
         # Add a timeout to the subprocess call
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
+
+        if debug:
+            print(f"[DEBUG] Extraction successful")
+            print(f"[DEBUG] Stream URL length: {len(result.stdout.strip())} characters")
+
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
         print("❌ Error: yt-dlp command timed out while extracting stream URL.", file=sys.stderr)
         return None
     except subprocess.CalledProcessError as e:
+        if debug:
+            print(f"[DEBUG] Extraction failed with exit code: {e.returncode}")
+            print(f"[DEBUG] Error output: {e.stderr}")
         print(f"❌ Error extracting stream: {e.stderr}", file=sys.stderr)
         return None
     except Exception as e:
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return None
 
-def extract_video_info(url, cookies=None, browser=None, ytdlp_path=None):
+def extract_video_info(url, cookies=None, browser=None, ytdlp_path=None, debug=False):
     """Extract video metadata using yt-dlp"""
     ytdlp = ytdlp_path or get_ytdlp_path()
     if not ytdlp:
@@ -150,9 +175,9 @@ def extract_video_info(url, cookies=None, browser=None, ytdlp_path=None):
     cmd = [
         ytdlp,
         '--ignore-config',
+        '--remote-components', 'ejs:github',
         '-j',
         '--no-playlist',
-        '--remote-components', 'ejs:github',
         url
     ]
 
@@ -161,14 +186,28 @@ def extract_video_info(url, cookies=None, browser=None, ytdlp_path=None):
     elif cookies:
         cmd.extend(['--cookies', cookies])
 
+    if debug:
+        print(f"\n[DEBUG] === Video Info Extraction ===")
+        print(f"[DEBUG] URL: {url}")
+        print(f"[DEBUG] Command: {' '.join(cmd)}")
+        print(f"[DEBUG] Starting extraction...")
+
     try:
         # Add a timeout to the subprocess call
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
+
+        if debug:
+            print(f"[DEBUG] Extraction successful")
+            print(f"[DEBUG] Response size: {len(result.stdout)} characters")
+
         return json.loads(result.stdout)
     except subprocess.TimeoutExpired:
         print("❌ Error: yt-dlp command timed out while extracting video info.", file=sys.stderr)
         return None
     except subprocess.CalledProcessError as e:
+        if debug:
+            print(f"[DEBUG] Extraction failed with exit code: {e.returncode}")
+            print(f"[DEBUG] Error output: {e.stderr}")
         print(f"❌ Error extracting info: {e.stderr}", file=sys.stderr)
         return None
     except Exception as e:
@@ -223,6 +262,7 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
     cmd = [
         ytdlp,
         '--ignore-config',
+        '--remote-components', 'ejs:github',
         '-j',
         '--no-playlist',
         '--flat-playlist',
@@ -235,8 +275,7 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         '--retries', '3',
         '--fragment-retries', '2',
         '--socket-timeout', '10',
-        '--buffer-size', '16K',
-        '--remote-components', 'ejs:github'
+        '--buffer-size', '16K'
     ]
 
     if debug:
@@ -251,15 +290,22 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
 
     try:
         if debug:
-            print(f"ℹ️ Executing command: {' '.join(cmd)}")
+            print(f"\n[DEBUG] === Search Operation ===")
+            print(f"[DEBUG] Query: '{query}'")
+            print(f"[DEBUG] Max results: {max_results}")
+            print(f"[DEBUG] Include videos: {include_videos}")
+            print(f"[DEBUG] Command: {' '.join(cmd)}")
+            print(f"[DEBUG] Starting search...")
 
         # Add a timeout to the subprocess call
         result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
 
         if debug and result.stderr:
-            print(f"--- yt-dlp debug output (stderr) ---\n{result.stderr}\n------------------------------------")
+            print(f"[DEBUG] yt-dlp stderr output:\n{result.stderr}")
 
         if result.returncode != 0:
+            if debug:
+                print(f"[DEBUG] yt-dlp exit code: {result.returncode}")
             if not debug and result.stderr:
                 pass
 
@@ -270,6 +316,9 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
                 entries.append(line)
 
         search_time = time.time() - start_time
+        if debug:
+            print(f"[DEBUG] Search completed in {search_time:.2f} seconds")
+            print(f"[DEBUG] Found {len(entries)} raw results")
         print(f"✅ Search completed in {search_time:.2f} seconds")
         print(f"🔍 Found {len(entries)} results")
 
@@ -292,9 +341,9 @@ def extract_playlist_urls(playlist_url, cookies=None, browser=None, ytdlp_path=N
     cmd = [
         ytdlp,
         '--ignore-config',
+        '--remote-components', 'ejs:github',
         '-j',
-        '--flat-playlist',
-        '--remote-components', 'ejs:github'
+        '--flat-playlist'
     ]
 
     if browser:
@@ -334,7 +383,8 @@ def generate_m3u_playlist(tracks, output_path):
         for track in tracks:
             duration = track.get('duration', 0)
             title = track.get('title', 'Unknown Title')
-            stream_url = track.get('stream_url', track.get('url'))
+            # Use stream_url if available, otherwise fall back to url
+            stream_url = track.get('stream_url') or track.get('url')
             if stream_url:
                 f.write(f'#EXTINF:{duration},{title}\n')
                 f.write(f'{stream_url}\n')
@@ -442,9 +492,9 @@ def generate_xspf_playlist(tracks, output_path):
     for track in tracks:
         track_elem = ET.SubElement(track_list, 'track')
 
-        # Add track location
+        # Add track location - use stream_url if available, otherwise fall back to url
         location = ET.SubElement(track_elem, 'location')
-        location.text = track.get('stream_url')
+        location.text = track.get('stream_url') or track.get('url')
 
         # Add track title
         title_elem = ET.SubElement(track_elem, 'title')
@@ -487,7 +537,11 @@ def pre_extract_stream_urls(tracks, args):
             continue
 
         # Extract stream URL
-        stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser)
+        if args.debug:
+            print(f"\n[DEBUG] === Pre-extraction for track {i} ===")
+            print(f"[DEBUG] Track: {track.get('title', 'Unknown')}")
+            print(f"[DEBUG] URL: {video_url}")
+        stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser, debug=args.debug)
 
         if stream_url:
             # Add stream URL to track info
@@ -502,6 +556,9 @@ def pre_extract_stream_urls(tracks, args):
             else:
                 print(f"   ✅ ", end="")
                 SimpleColor.print_green(title)
+
+            if args.debug:
+                print(f"[DEBUG] Stream URL: {stream_url[:100]}...")
         else:
             print(f"   ❌ Failed to extract stream URL, skipping...")
 
@@ -513,7 +570,7 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
     import tempfile
     import os
 
-    # Pre-extract stream URLs
+    # Pre-extract stream URLs for all tracks
     print("\n🔄 Pre-extracting stream URLs for all tracks...")
 
     # Use ThreadPoolExecutor for parallel stream URL extraction
@@ -528,7 +585,12 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
         if not video_url:
             return None
 
-        stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser)
+        # Extract stream URL using the updated function
+        if args.debug:
+            print(f"\n[DEBUG] === Parallel extraction for track ===")
+            print(f"[DEBUG] Track: {track_info.get('title', 'Unknown')}")
+            print(f"[DEBUG] URL: {video_url}")
+        stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser, debug=args.debug)
 
         if args.debug:
             elapsed = time.time() - start_time
@@ -536,6 +598,8 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
 
         if stream_url:
             track_info['stream_url'] = stream_url
+            if args.debug:
+                print(f"[DEBUG] Successfully extracted stream URL: {stream_url[:100]}...")
             return track_info
         return None
 
@@ -561,9 +625,6 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
             # Show progress
             print(f"🔍 Extracting stream URL for track {i}/{len(tracks)}...")
 
-            # Show progress
-            print(f"🔍 Extracting stream URL for track {i}/{len(tracks)}...")
-
     if not tracks_with_streams:
         print("\n❌ No valid tracks to play")
         return False
@@ -583,6 +644,25 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
             generate_m3u_playlist(tracks_with_streams, temp_playlist)
 
         print(f"\n🎵 Generated {args.playlist_format.upper()} playlist with {len(tracks_with_streams)} tracks")
+
+        # Debug: Print tracks being added to playlist and save playlist content
+        if args.debug:
+            print(f"\n[DEBUG] === Playlist Contents ===")
+            for i, track in enumerate(tracks_with_streams, 1):
+                stream_url = track.get('stream_url')
+                url = track.get('url')
+                title = track.get('title', 'Unknown')
+                print(f"[DEBUG] Track {i}: {title}")
+                print(f"[DEBUG]   Stream URL: {stream_url[:100] if stream_url else 'None'}")
+                print(f"[DEBUG]   Fallback URL: {url[:100] if url else 'None'}")
+
+            # Save playlist content to debug file
+            debug_playlist_path = temp_playlist + '.debug'
+            with open(temp_playlist, 'r', encoding='utf-8') as f:
+                playlist_content = f.read()
+            with open(debug_playlist_path, 'w', encoding='utf-8') as f:
+                f.write(playlist_content)
+            print(f"[DEBUG] Playlist saved to: {debug_playlist_path}")
 
         # Save playlist if requested
         if args.save_playlist:
@@ -693,7 +773,7 @@ def select_tracks_with_space(results):
         selected = set()
         current_index = 0
 
-        # Preloading state
+        # Preloading state (removed from UI)
         preloaded_tracks = {}
         preloading_progress = {"current": 0, "total": len(results)}
         preloading_active = True
@@ -725,7 +805,7 @@ def select_tracks_with_space(results):
 
                 # Format duration
                 duration = track.get('duration')
-                if duration:
+                if duration is not None:
                     duration_int = int(duration)
                     minutes = duration_int // 60
                     seconds = duration_int % 60
@@ -813,10 +893,7 @@ def select_tracks_with_space(results):
                         break
                     index, _ = future.result()
                     preloading_progress["current"] += 1
-
-                    # Update display with preloading progress
-                    progress_str = f"🔄 Preloading: {preloading_progress['current']}/{preloading_progress['total']} tracks..."
-                    update_display(progress_str)
+                    # Preloading progress removed from UI
 
             preloading_active = False
 
@@ -1092,9 +1169,12 @@ def main():
 Examples:
   %(prog)s https://www.youtube.com/watch?v=dQw4w9WgXcQ
   %(prog)s --search "上海交响乐团" -b "chrome:Profile 5" --max-results 3
-  
+
   Advanced usage:
   %(prog)s --search "上海交响乐团" --include-videos --sort views --shuffle --save-playlist "shanghai_symphony.xspf"
+
+  Troubleshooting format errors:
+  %(prog)s <url> -q worstaudio  # Use lowest quality if bestaudio fails
         """
     )
     
@@ -1104,8 +1184,8 @@ Examples:
     group.add_argument('-s', '--search', help='Search YouTube Music by query')
     group.add_argument('--load-playlist', help='Load and play from existing playlist file')
 
-    parser.add_argument('-q', '--quality', default='bestaudio',
-                       help='Stream quality preference (default: bestaudio)')
+    parser.add_argument('-q', '--quality', default='best',
+                       help='Stream quality preference (best, bestaudio, worstaudio, or format code)')
     parser.add_argument('-c', '--cookies', help='Path to cookies file for premium access')
     parser.add_argument('-b', '--browser', help='Extract cookies from browser (e.g., "chrome", "firefox:Profile 5")')
     parser.add_argument('--no-video', action='store_true',
@@ -1376,7 +1456,7 @@ Examples:
             print(f"\n💾 Saving single track as playlist to {args.save_playlist}")
 
             # Get video info for metadata
-            info = extract_video_info(url, args.cookies, args.browser)
+            info = extract_video_info(url, args.cookies, args.browser, debug=args.debug)
             if not info:
                 info = {'title': 'Unknown Title', 'webpage_url': url}
 
@@ -1406,19 +1486,21 @@ Examples:
 
             # Playback after saving
             print("\n▶️ Starting playback...")
+            if args.debug:
+                print(f"[DEBUG] Playing stream URL: {stream_url[:100]}...")
             success = play_with_vlc(stream_url, info.get('title', 'YouTube Music'), vlc_args)
         else:
             # Normal single track playback
             # Extract stream URL
             print("🔍 Extracting stream URL...")
-            stream_url = extract_stream_url(url, args.quality, args.cookies, args.browser)
+            stream_url = extract_stream_url(url, args.quality, args.cookies, args.browser, debug=args.debug)
 
             if not stream_url:
                 print("❌ Failed to extract stream URL")
                 sys.exit(1)
 
             # Get video title for VLC metadata
-            info = extract_video_info(url, args.cookies, args.browser)
+            info = extract_video_info(url, args.cookies, args.browser, debug=args.debug)
             video_title = info.get('title', 'YouTube Music') if info else 'YouTube Music'
 
             # Print with appropriate coloring
@@ -1429,6 +1511,8 @@ Examples:
                 print(f"▶️ Now playing: ", end="")
                 SimpleColor.print_bold_cyan(video_title)
             print(f"🎵 Stream URL: {stream_url[:100]}...")
+            if args.debug:
+                print(f"[DEBUG] Full stream URL: {stream_url}")
             print("\nPress Ctrl+C to stop playback")
             print("-" * 50)
 
