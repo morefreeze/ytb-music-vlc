@@ -635,6 +635,370 @@ def handle_duplicate_file(file_path):
 
 
 def select_tracks_with_space(results):
+    """Create a rich TUI for selecting YouTube Music tracks similar to create_video_list_ui"""
+    try:
+        from rich.console import Console
+        from rich.panel import Panel
+        from rich.table import Table
+        
+        console = Console()
+
+        # Store selection state - default to no tracks selected
+        selected = set()
+        current_index = 0
+
+        def create_track_table():
+            """Create and update the track selection table with selection column"""
+            table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+            table.add_column("Select", style="bold", width=8)
+            table.add_column("#", style="dim", width=4)
+            table.add_column("Track Title", style="white", no_wrap=False)
+            table.add_column("Artist", style="cyan", width=20)
+            table.add_column("Duration", style="magenta", width=10)
+            table.add_column("Views", style="green", width=12)
+            table.add_column("Status", style="bold", width=15)
+
+            for i, track in enumerate(results):
+                title = track.get('title', 'Unknown Title')
+                artist = track.get('uploader', 'Unknown Artist')
+                
+                # Format duration
+                duration = track.get('duration')
+                if duration:
+                    duration_int = int(duration)
+                    minutes = duration_int // 60
+                    seconds = duration_int % 60
+                    duration_str = f"{minutes}:{seconds:02d}"
+                else:
+                    duration_str = "N/A"
+
+                # Format view count
+                view_count = track.get('view_count')
+                if view_count:
+                    if view_count >= 1000000:
+                        views_str = f"{view_count/1000000:.1f}M"
+                    elif view_count >= 1000:
+                        views_str = f"{view_count/1000:.1f}K"
+                    else:
+                        views_str = str(view_count)
+                else:
+                    views_str = "N/A"
+
+                # Selection indicator
+                select_indicator = "[green]✓[/green]" if i in selected else "[white]□[/white]"
+                
+                status = ""
+                if i == current_index:
+                    status = "[bold yellow]◄[/bold yellow]"  # Cursor indicator
+
+                if i in selected:
+                    status += "[bold green]SELECTED[/bold green]"
+                else:
+                    status += "[dim]Unselected[/dim]"
+
+                table.add_row(select_indicator, str(i + 1), title, artist, duration_str, views_str, status)
+
+            return table
+
+        def update_display():
+            """Update the display with current state"""
+            console.clear()
+
+            # Header
+            header = Panel.fit(
+                "[bold cyan]🎵 YouTube Music Selection Interface[/bold cyan]\n"
+                f"[bold yellow]Found {len(results)} tracks. Use arrow keys to navigate, space to toggle, a to select all, Enter to confirm, Q to quit.[/bold yellow]",
+                border_style="cyan",
+            )
+            console.print(header)
+            console.print()
+
+            # Track table
+            table = create_track_table()
+            console.print(table)
+
+            # Footer with instructions
+            footer = Panel(
+                f"[bold]Selected:[/bold] {len(selected)}/{len(results)} | "
+                "[bold green]Space:[/bold green] Toggle | "
+                "[bold blue]A:[/bold blue] Select All | "
+                "[bold blue]Enter:[/bold blue] Confirm | "
+                "[bold red]Q:[/bold red] Quit",
+                border_style="green",
+            )
+            console.print(footer)
+
+        # Initial display
+        update_display()
+
+        # Keyboard handling
+        import sys
+        import termios
+        import tty
+        import select
+
+        def get_key():
+            """Get a single keypress"""
+            try:
+                # Save current terminal settings
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                tty.setraw(sys.stdin.fileno())
+
+                # Read key
+                ch = sys.stdin.read(1)
+
+                # Handle special keys
+                if ch == '\x1b':  # Escape sequence
+                    ch2 = sys.stdin.read(1)
+                    if ch2 == '[':
+                        ch3 = sys.stdin.read(1)
+                        if ch3 in 'ABCD':  # Arrow keys
+                            return {'[A': 'up', '[B': 'down', '[C': 'right', '[D': 'left'}.get('[' + ch3, '')
+                        elif ch3 == 'H':  # Home
+                            return 'home'
+                        elif ch3 == 'F':  # End
+                            return 'end'
+
+                return ch.lower()
+            except Exception:
+                return ''
+            finally:
+                # Restore terminal settings
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+        # Main interaction loop
+        while True:
+            key = get_key()
+
+            if key == 'q':
+                return None
+            elif key == '\n' or key == '\r':  # Enter key for confirmation
+                if selected:
+                    return [results[i] for i in sorted(selected)]
+                return None
+            elif key == 'a':
+                # Toggle select all
+                if len(selected) == len(results):
+                    selected.clear()
+                else:
+                    selected = set(range(len(results)))
+                update_display()
+            elif key == ' ' :  # Space key for toggle
+                if current_index not in selected:
+                    selected.add(current_index)
+                else:
+                    selected.remove(current_index)
+                update_display()
+            elif key == 'up':
+                current_index = max(0, current_index - 1)
+                update_display()
+            elif key == 'down':
+                current_index = min(len(results) - 1, current_index + 1)
+                update_display()
+            elif key == 'home':
+                current_index = 0
+                update_display()
+            elif key == 'end':
+                current_index = len(results) - 1
+                update_display()
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Operation cancelled.[/yellow]")
+        return None
+    except Exception as e:
+        console.print(f"[red]TUI failed: {e}[/red]")
+        console.print("[yellow]Falling back to CLI mode...[/yellow]")
+        return create_simple_cli_interface(results)
+
+
+def create_simple_cli_interface(results):
+    """Simple CLI fallback interface"""
+    if has_rich:
+        from rich.console import Console
+        from rich.table import Table
+        from rich.prompt import Prompt
+        
+        console = Console()
+
+        console.print("\n[bold cyan]SIMPLE CLI SELECTION[/bold cyan]")
+        console.print(f"Found {len(results)} tracks. Please select which ones to play:")
+        console.print("[bold]Instructions:[/bold]")
+        console.print("- Enter track numbers separated by commas (e.g., 1,3,5)")
+        console.print("- Enter 'all' to select all tracks")
+        console.print("- Press Enter with no input to select none")
+        console.print("- Enter 'q' to quit")
+        console.print()
+
+        # Display track list
+        table = Table(show_header=True, header_style="bold cyan", show_lines=True)
+        table.add_column("#", style="dim", width=4)
+        table.add_column("Track Title", style="white", no_wrap=False)
+        table.add_column("Artist", style="cyan", width=20)
+        table.add_column("Duration", style="magenta", width=10)
+        table.add_column("Views", style="green", width=12)
+
+        for i, track in enumerate(results, 1):
+            title = track.get('title', 'Unknown Title')
+            artist = track.get('uploader', 'Unknown Artist')
+            
+            # Format duration
+            duration = track.get('duration')
+            if duration:
+                duration_int = int(duration)
+                minutes = duration_int // 60
+                seconds = duration_int % 60
+                duration_str = f"{minutes}:{seconds:02d}"
+            else:
+                duration_str = "N/A"
+
+            # Format view count
+            view_count = track.get('view_count')
+            if view_count:
+                if view_count >= 1000000:
+                    views_str = f"{view_count/1000000:.1f}M"
+                elif view_count >= 1000:
+                    views_str = f"{view_count/1000:.1f}K"
+                else:
+                    views_str = str(view_count)
+            else:
+                views_str = "N/A"
+
+            table.add_row(str(i), title, artist, duration_str, views_str)
+
+        console.print(table)
+
+        while True:
+            user_input = Prompt.ask("\nYour selection").strip().lower()
+
+            if user_input == 'q':
+                return None
+
+            if not user_input:
+                console.print("No tracks selected.")
+                return None
+
+            if user_input == 'all':
+                return results
+
+            try:
+                # Parse comma-separated numbers
+                selected_indices = []
+                for part in user_input.split(','):
+                    part = part.strip()
+                    if part:
+                        index = int(part)
+                        if 1 <= index <= len(results):
+                            selected_indices.append(index - 1)  # Convert to 0-based
+                        else:
+                            console.print(f"[red]Invalid track number: {index}[/red]")
+                            break
+                else:
+                    # All indices are valid
+                    selected_tracks = [results[i] for i in selected_indices]
+                    console.print(f"[green]Selected {len(selected_tracks)} tracks.[/green]")
+                    return selected_tracks
+
+            except ValueError:
+                console.print("[red]Invalid input. Please enter numbers separated by commas, or 'all', or leave empty.[/red]")
+    else:
+        # Fallback for systems without rich
+        print("\nSIMPLE CLI SELECTION")
+        print(f"Found {len(results)} tracks. Please select which ones to play:")
+        print("Instructions:")
+        print("- Enter track numbers separated by commas (e.g., 1,3,5)")
+        print("- Enter 'all' to select all tracks")
+        print("- Press Enter with no input to select none")
+        print("- Enter 'q' to quit")
+        print()
+
+        # Display track list
+        print("{:<4} {:<50} {:<20} {:<10} {:<12}".format("#", "Track Title", "Artist", "Duration", "Views"))
+        print("-" * 100)
+        
+        for i, track in enumerate(results, 1):
+            title = track.get('title', 'Unknown Title')
+            artist = track.get('uploader', 'Unknown Artist')
+            
+            # Format duration
+            duration = track.get('duration')
+            if duration:
+                duration_int = int(duration)
+                minutes = duration_int // 60
+                seconds = duration_int % 60
+                duration_str = f"{minutes}:{seconds:02d}"
+            else:
+                duration_str = "N/A"
+
+            # Format view count
+            view_count = track.get('view_count')
+            if view_count:
+                if view_count >= 1000000:
+                    views_str = f"{view_count/1000000:.1f}M"
+                elif view_count >= 1000:
+                    views_str = f"{view_count/1000:.1f}K"
+                else:
+                    views_str = str(view_count)
+            else:
+                views_str = "N/A"
+
+            print("{:<4} {:<50} {:<20} {:<10} {:<12}".format(str(i), title[:47] + '...' if len(title) > 47 else title, 
+                                                             artist[:17] + '...' if len(artist) > 17 else artist, 
+                                                             duration_str, views_str))
+
+        while True:
+            user_input = input("\nYour selection: ").strip().lower()
+
+            if user_input == 'q':
+                return None
+
+            if not user_input:
+                print("No tracks selected.")
+                return None
+
+            if user_input == 'all':
+                return results
+
+            try:
+                # Parse comma-separated numbers
+                selected_indices = []
+                for part in user_input.split(','):
+                    part = part.strip()
+                    if part:
+                        index = int(part)
+                        if 1 <= index <= len(results):
+                            selected_indices.append(index - 1)  # Convert to 0-based
+                        else:
+                            print(f"Invalid track number: {index}")
+                            break
+                else:
+                    # All indices are valid
+                    selected_tracks = [results[i] for i in selected_indices]
+                    print(f"Selected {len(selected_tracks)} tracks.")
+                    return selected_tracks
+
+            except ValueError:
+                print("Invalid input. Please enter numbers separated by commas, or 'all', or leave empty.")
+
+
+def main():
+    """Main function that initializes argparse and handles program flow"""
+    parser = argparse.ArgumentParser(
+        description="YouTube Music Player via VLC",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  %(prog)s --search "上海交响乐团" -b "chrome:Profile 5" --max-results 3
+  
+  Advanced usage:
+  %(prog)s --search "上海交响乐团" --include-videos --sort views --shuffle --save-playlist "shanghai_symphony.xspf"
+        """
+    )
+    
+    # Create a group for primary sources (mutually exclusive)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('url', nargs='?', help='YouTube Music URL (video, track, album, or playlist)')
     group.add_argument('-s', '--search', help='Search YouTube Music by query')
     group.add_argument('--load-playlist', help='Load and play from existing playlist file')
 
@@ -773,50 +1137,9 @@ def select_tracks_with_space(results):
                 if not all(r.get('upload_date') for r in results):
                     results.sort(key=lambda x: x.get('release_timestamp', 0), reverse=True)
 
-        print("\n🎵 Search Results:")
-        print("-" * 80)
-        for i, result in enumerate(results, 1):
-            title = result.get('title', 'Unknown Title')
-            channel = result.get('uploader', 'Unknown Artist')
-            duration = result.get('duration', 0)
-            views = result.get('view_count', 0)
-
-            # Format duration
-            if duration:
-                minutes = int(duration) // 60
-                seconds = int(duration) % 60
-                duration_str = f"{minutes}:{seconds:02d}"
-            else:
-                duration_str = "N/A"
-
-            # Format views
-            if views >= 1000000:
-                views_str = f"{views/1000000:.1f}M"
-            elif views >= 1000:
-                views_str = f"{views/1000:.1f}K"
-            else:
-                views_str = str(views)
-
-            # Print with appropriate coloring
-            if has_rich:
-                console = Console()
-                console.print(f"{i:2d}. [bold cyan]{title}[/bold cyan]")
-                console.print(f"    Artist: [green]{channel}[/green]")
-                console.print(f"    Duration: [yellow]{duration_str}[/yellow] | Views: [magenta]{views_str}[/magenta]")
-            else:
-                print(f"{i:2d}. ", end="")
-                SimpleColor.print_bold_cyan(title)
-                print(f"    Artist: ", end="")
-                SimpleColor.print_green(channel)
-                print(f"    Duration: ", end="")
-                SimpleColor.print_yellow(duration_str)
-                print(f" | Views: ", end="")
-                SimpleColor.print_magenta(views_str)
-            print()
-
         # Check if rich is available for TUI
         if has_rich:
-            input("\n--- Press Enter to continue to interactive selection ---")
+            print("Launching interactive selection interface...")
             selected_tracks = select_tracks_with_space(results)
             if selected_tracks and len(selected_tracks) > 0:
                 # Create playlist from selected tracks
@@ -828,88 +1151,24 @@ def select_tracks_with_space(results):
                     })
                 print(f"\n▶️ Selected {len(playlist_videos)} tracks to play as playlist")
             else:
-                # Fall back to regular selection if space selection was cancelled
-                playlist_videos = None
+                # If user cancelled selection (q key), exit directly
+                print("\nNo tracks selected. Exiting...")
+                sys.exit(0)
         else:
-            playlist_videos = None
-
-        # Regular number-based selection fallback
-        while playlist_videos is None:
-            try:
-                selection = input("Select tracks to play (space-separated numbers like '1 3 5', 'all' for all, 'q' to quit): ").strip()
-                if selection.lower() == 'q':
-                    sys.exit(0)
-                if selection.lower() == 'all':
-                    # Play all search results as a playlist
-                    playlist_urls = []
-                    for result in results:
-                        url = result.get('webpage_url') or result.get('url')
-                        playlist_urls.append(url)
-                    print(f"\n▶️ Selected all {len(playlist_urls)} tracks to play as playlist")
-                    # Create a temporary playlist dictionary
-                    playlist_videos = []
-                    for result in results:
-                        playlist_videos.append({
-                            'webpage_url': result.get('webpage_url') or result.get('url'),
-                            'title': result.get('title', 'Unknown Title')
-                        })
-                    break
-
-                # Parse space-separated numbers
-                selected_indices = list(map(int, selection.split()))
-                if len(selected_indices) > 1:
-                    # Multiple selection - create playlist
-                    playlist_urls = []
-                    for idx in selected_indices:
-                        if 1 <= idx <= len(results):
-                            index = idx - 1
-                            selected = results[index]
-                            playlist_urls.append(selected.get('webpage_url') or selected.get('url'))
-                    print(f"\n▶️ Selected {len(playlist_urls)} tracks to play as playlist")
-                    # Create a temporary playlist dictionary
-                    playlist_videos = []
-                    for idx in selected_indices:
-                        if 1 <= idx <= len(results):
-                            index = idx - 1
-                            result = results[index]
-                            playlist_videos.append({
-                                'webpage_url': result.get('webpage_url') or result.get('url'),
-                                'title': result.get('title', 'Unknown Title')
-                            })
-                    break
-                else:
-                    # Single selection
-                    index = selected_indices[0] - 1
-                    if 0 <= index < len(results):
-                        selected = results[index]
-                        url = selected.get('webpage_url') or selected.get('url')
-                        # Print selection with appropriate coloring
-                        selected_title = selected.get('title', 'Unknown Title')
-                        if has_rich:
-                            console = Console()
-                            console.print(f"\n▶️ Selected: [bold cyan]{selected_title}[/bold cyan]")
-                        else:
-                            print("\n▶️ Selected: ", end="")
-                            SimpleColor.print_bold_cyan(selected_title)
-                        break
-                    print(f"Please enter a number between 1 and {len(results)}")
-            except ValueError:
-                print("Invalid input. Please enter space-separated numbers, 'all', or 'q'")
-
-        # Handle single selection case (fallback)
-        if not playlist_videos and 'selected' in locals():
-            selected_title = selected.get('title', 'Unknown Title')
-            url = selected.get('webpage_url') or selected.get('url')
-            if has_rich:
-                console = Console()
-                console.print(f"\n▶️ Selected: [bold cyan]{selected_title}[/bold cyan]")
+            # For non-rich environments, use CLI interface directly
+            selected_tracks = create_simple_cli_interface(results)
+            if selected_tracks and len(selected_tracks) > 0:
+                # Create playlist from selected tracks
+                playlist_videos = []
+                for track in selected_tracks:
+                    playlist_videos.append({
+                        'webpage_url': track.get('webpage_url') or track.get('url'),
+                        'title': track.get('title', 'Unknown Title')
+                    })
+                print(f"\n▶️ Selected {len(playlist_videos)} tracks to play as playlist")
             else:
-                print("\n▶️ Selected: ", end="")
-                SimpleColor.print_bold_cyan(selected_title)
-        elif not playlist_videos:
-            # No valid selection made
-            print("❌ No valid selection made")
-            sys.exit(1)
+                print("No tracks selected. Exiting...")
+                sys.exit(0)
     else:
         url = args.url
 
