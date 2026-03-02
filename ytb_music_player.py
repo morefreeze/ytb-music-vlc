@@ -561,10 +561,8 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
             # Show progress
             print(f"🔍 Extracting stream URL for track {i}/{len(tracks)}...")
 
-            # Update the footer with preloading progress
-            if has_rich:
-                temp_console = Console()
-                temp_console.print(f"\r[bold yellow]🔄 Preloading: {i}/{len(tracks)} tracks...[/bold yellow]", end="")
+            # Show progress
+            print(f"🔍 Extracting stream URL for track {i}/{len(tracks)}...")
 
     if not tracks_with_streams:
         print("\n❌ No valid tracks to play")
