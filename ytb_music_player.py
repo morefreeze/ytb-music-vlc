@@ -1184,7 +1184,7 @@ Examples:
     group.add_argument('-s', '--search', help='Search YouTube Music by query')
     group.add_argument('--load-playlist', help='Load and play from existing playlist file')
 
-    parser.add_argument('-q', '--quality', default='best',
+    parser.add_argument('-q', '--quality', default='bestaudio',
                        help='Stream quality preference (best, bestaudio, worstaudio, or format code)')
     parser.add_argument('-c', '--cookies', help='Path to cookies file for premium access')
     parser.add_argument('-b', '--browser', help='Extract cookies from browser (e.g., "chrome", "firefox:Profile 5")')
