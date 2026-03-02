@@ -553,8 +553,14 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
             # Show progress
             print(f"🔍 Extracting stream URL for track {i}/{len(tracks)}...")
 
+            # Update the footer with preloading progress
+            if has_rich:
+                from rich.console import Console
+                temp_console = Console()
+                temp_console.print(f"\r[bold yellow]🔄 Preloading: {i}/{len(tracks)} tracks...[/bold yellow]", end="")
+
     if not tracks_with_streams:
-        print("❌ No valid tracks to play")
+        print("\n❌ No valid tracks to play")
         return False
 
     print(f"\n✅ Successfully extracted stream URLs for {len(tracks_with_streams)}/{len(tracks)} tracks")
@@ -733,7 +739,7 @@ def select_tracks_with_space(results):
 
             return table
 
-        def update_display():
+        def update_display(preloading_status=""):
             """Update the display with current state"""
             console.clear()
 
@@ -751,12 +757,18 @@ def select_tracks_with_space(results):
             console.print(table)
 
             # Footer with instructions
+            footer_text = f"[bold]Selected:[/bold] {len(selected)}/{len(results)} | "
+            footer_text += "[bold green]Space:[/bold green] Toggle | "
+            footer_text += "[bold blue]A:[/bold blue] Select All | "
+            footer_text += "[bold blue]Enter:[/bold blue] Confirm | "
+            footer_text += "[bold red]Q:[/bold red] Quit"
+
+            # Add preloading status if provided
+            if preloading_status:
+                footer_text += f"\n[bold yellow]{preloading_status}[/bold yellow]"
+
             footer = Panel(
-                f"[bold]Selected:[/bold] {len(selected)}/{len(results)} | "
-                "[bold green]Space:[/bold green] Toggle | "
-                "[bold blue]A:[/bold blue] Select All | "
-                "[bold blue]Enter:[/bold blue] Confirm | "
-                "[bold red]Q:[/bold red] Quit",
+                footer_text,
                 border_style="green",
             )
             console.print(footer)
