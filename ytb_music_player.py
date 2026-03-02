@@ -521,11 +521,19 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
 
     def extract_single_track(track_info):
         """Extract stream URL for a single track"""
+        import time
+        start_time = time.time()
+
         video_url = track_info.get('webpage_url') or track_info.get('url')
         if not video_url:
             return None
 
         stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser)
+
+        if args.debug:
+            elapsed = time.time() - start_time
+            print(f"[DEBUG] Extracting stream URL for '{track_info.get('title', 'Unknown')}' took {elapsed:.2f}s")
+
         if stream_url:
             track_info['stream_url'] = stream_url
             return track_info
