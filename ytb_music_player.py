@@ -555,7 +555,6 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
 
             # Update the footer with preloading progress
             if has_rich:
-                from rich.console import Console
                 temp_console = Console()
                 temp_console.print(f"\r[bold yellow]🔄 Preloading: {i}/{len(tracks)} tracks...[/bold yellow]", end="")
 
