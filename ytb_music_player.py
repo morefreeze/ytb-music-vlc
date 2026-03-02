@@ -14,6 +14,7 @@ import sys
 import subprocess
 import argparse
 import tempfile
+import tempfile
 import json
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
@@ -80,9 +81,9 @@ def get_vlc_path():
             return candidate
     return None
 
-def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None):
+def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None, ytdlp_path=None):
     """Extract stream URL using yt-dlp"""
-    ytdlp = get_ytdlp_path()
+    ytdlp = ytdlp_path or get_ytdlp_path()
     if not ytdlp:
         print("❌ Error: yt-dlp not found in PATH", file=sys.stderr)
         return None
@@ -96,18 +97,17 @@ def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None):
         url
     ]
 
-    if browser:
-        browser_parts = browser.split(':', 1)
-        if len(browser_parts) == 2:
-            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
-        else:
-            cmd.extend(['--cookies-from-browser', browser])
-    elif cookies:
-        cmd.extend(['--cookies', cookies])
+    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
+    if cookie_file:
+        cmd.extend(['--cookies', cookie_file])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # Add a timeout to the subprocess call
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        print("❌ Error: yt-dlp command timed out while extracting stream URL.", file=sys.stderr)
+        return None
     except subprocess.CalledProcessError as e:
         print(f"❌ Error extracting stream: {e.stderr}", file=sys.stderr)
         return None
@@ -115,9 +115,9 @@ def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None):
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return None
 
-def extract_video_info(url, cookies=None, browser=None):
+def extract_video_info(url, cookies=None, browser=None, ytdlp_path=None):
     """Extract video metadata using yt-dlp"""
-    ytdlp = get_ytdlp_path()
+    ytdlp = ytdlp_path or get_ytdlp_path()
     if not ytdlp:
         print("❌ Error: yt-dlp not found in PATH", file=sys.stderr)
         return None
@@ -130,18 +130,17 @@ def extract_video_info(url, cookies=None, browser=None):
         url
     ]
 
-    if browser:
-        browser_parts = browser.split(':', 1)
-        if len(browser_parts) == 2:
-            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
-        else:
-            cmd.extend(['--cookies-from-browser', browser])
-    elif cookies:
-        cmd.extend(['--cookies', cookies])
+    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
+    if cookie_file:
+        cmd.extend(['--cookies', cookie_file])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # Add a timeout to the subprocess call
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         return json.loads(result.stdout)
+    except subprocess.TimeoutExpired:
+        print("❌ Error: yt-dlp command timed out while extracting video info.", file=sys.stderr)
+        return None
     except subprocess.CalledProcessError as e:
         print(f"❌ Error extracting info: {e.stderr}", file=sys.stderr)
         return None
@@ -183,7 +182,29 @@ def play_with_vlc(stream_url, video_title, vlc_args=None):
         print(f"❌ Error playing stream: {e}", file=sys.stderr)
         return False
 
-def search_music(query, max_results=5, cookies=None, browser=None, include_videos=False):
+def handle_cookies_auth(ytdlp_path, browser, cookies, cmd):
+    """Handles cookie authentication by exporting from browser or using a file."""
+    cookie_file = None
+    if browser:
+        temp_cookie_file = os.path.join(tempfile.gettempdir(), f"ytb_music_cookies_{browser.replace(':', '_')}.txt")
+        
+        try:
+            cookie_export_cmd = [
+                ytdlp_path, '--cookies-from-browser', browser, '--cookies', temp_cookie_file
+            ]
+            subprocess.run(cookie_export_cmd, check=True, timeout=20, capture_output=True)
+            cookie_file = temp_cookie_file
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            if os.path.exists(temp_cookie_file) and os.path.getsize(temp_cookie_file) > 0:
+                cookie_file = temp_cookie_file
+            else:
+                cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
+        cookie_file = cookies
+        
+    return cookie_file
+
+def search_music(query, max_results=5, cookies=None, browser=None, include_videos=False, debug=False):
     """Search YouTube Music and return results"""
     import time
     start_time = time.time()
@@ -198,6 +219,7 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         '--ignore-config',
         '-j',
         '--no-playlist',
+        '--flat-playlist',
         '--skip-download',
         '--no-check-certificate',
         '--no-warnings',
@@ -210,37 +232,34 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         '--buffer-size', '16K'
     ]
 
-    # Use consistent format for both search types
+    if debug:
+        cmd.append('--verbose')
+
     cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
 
-    if browser:
-        browser_parts = browser.split(':', 1)
-        if len(browser_parts) == 2:
-            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
-        else:
-            cmd.extend(['--cookies-from-browser', browser])
-    elif cookies:
-        cmd.extend(['--cookies', cookies])
+    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
+    if cookie_file:
+        cmd.extend(['--cookies', cookie_file])
 
     try:
-        print(f"📡 Searching YouTube Music (query: '{query}', max_results: {max_results})...")
+        if debug:
+            print(f"ℹ️ Executing command: {' '.join(cmd)}")
+        
+        # Add a timeout to the subprocess call
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
 
-        print(f"ℹ️ Executing command: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-
-        # Print debug output
+        if debug and result.stderr:
+            print(f"--- yt-dlp debug output (stderr) ---\n{result.stderr}\n------------------------------------")
+        
         if result.returncode != 0:
-            print(f"⚠️ Command returned non-zero exit code: {result.returncode}")
-            if result.stderr:
-                print(f"ℹ️ Stderr output: {result.stderr[:500]}...")
+            if not debug and result.stderr:
+                pass
 
-        # ytsearch returns JSON objects, one per line
         results = []
         for line in result.stdout.strip().split('\n'):
             if line:
                 try:
                     data = json.loads(line)
-                    # Filter to only the fields we need to minimize memory usage
                     filtered = {
                         'id': data.get('id'),
                         'title': data.get('title'),
@@ -260,18 +279,17 @@ def search_music(query, max_results=5, cookies=None, browser=None, include_video
         print(f"✅ Search completed in {search_time:.2f} seconds")
         print(f"🔍 Found {len(results)} results")
 
-        # Always return at least the number of results requested (or as many as available)
         return results[:max_results]
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Error searching: {e.stderr}", file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("❌ Error: yt-dlp command timed out after 60 seconds. This might be a network issue or a problem with yt-dlp itself.", file=sys.stderr)
         return None
     except Exception as e:
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return None
 
-def extract_playlist_urls(playlist_url, cookies=None, browser=None):
+def extract_playlist_urls(playlist_url, cookies=None, browser=None, ytdlp_path=None):
     """Extract all video URLs from a playlist"""
-    ytdlp = get_ytdlp_path()
+    ytdlp = ytdlp_path or get_ytdlp_path()
     if not ytdlp:
         print("❌ Error: yt-dlp not found in PATH", file=sys.stderr)
         return None
@@ -281,22 +299,17 @@ def extract_playlist_urls(playlist_url, cookies=None, browser=None):
         '--ignore-config',
         '-j',
         '--flat-playlist',
-        '--no-playlist'
     ]
 
-    if browser:
-        browser_parts = browser.split(':', 1)
-        if len(browser_parts) == 2:
-            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
-        else:
-            cmd.extend(['--cookies-from-browser', browser])
-    elif cookies:
-        cmd.extend(['--cookies', cookies])
+    cookie_file = handle_cookies_auth(ytdlp, browser, cookies, cmd)
+    if cookie_file:
+        cmd.extend(['--cookies', cookie_file])
 
     cmd.append(playlist_url)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # Add a timeout to the subprocess call
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         videos = []
         for line in result.stdout.strip().split('\n'):
             if line:
@@ -306,6 +319,9 @@ def extract_playlist_urls(playlist_url, cookies=None, browser=None):
                 except json.JSONDecodeError:
                     continue
         return videos
+    except subprocess.TimeoutExpired:
+        print("❌ Error: yt-dlp command timed out while extracting playlist URLs.", file=sys.stderr)
+        return None
     except subprocess.CalledProcessError as e:
         print(f"❌ Error extracting playlist: {e.stderr}", file=sys.stderr)
         return None
@@ -651,8 +667,8 @@ def select_tracks_with_space(results):
 
             # Format duration
             if duration:
-                minutes = duration // 60
-                seconds = duration % 60
+                minutes = int(duration) // 60
+                seconds = int(duration) % 60
                 duration_str = f"{minutes}:{seconds:02d}"
             else:
                 duration_str = "N/A"
@@ -789,6 +805,8 @@ Examples:
                        help='Sort search results by specified field (views: highest to lowest, duration: longest to shortest, upload_date: newest to oldest)')
     parser.add_argument('--include-videos', action='store_true',
                        help='Include YouTube videos in search results (not just music tracks). Will still extract audio for playback.')
+    parser.add_argument('--debug', action='store_true',
+                       help='Enable debug mode for yt-dlp.')
 
     args = parser.parse_args()
 
@@ -859,10 +877,10 @@ Examples:
     elif args.search:
         if args.include_videos:
             print(f"🔍 Searching YouTube (including videos) for: {args.search}")
-            results = search_music(args.search, args.max_results, args.cookies, args.browser, include_videos=True)
+            results = search_music(args.search, args.max_results, args.cookies, args.browser, include_videos=True, debug=args.debug)
         else:
             print(f"🔍 Searching YouTube Music for: {args.search}")
-            results = search_music(args.search, args.max_results, args.cookies, args.browser)
+            results = search_music(args.search, args.max_results, args.cookies, args.browser, debug=args.debug)
 
         if not results:
             print("❌ No results found")
@@ -904,8 +922,8 @@ Examples:
 
             # Format duration
             if duration:
-                minutes = duration // 60
-                seconds = duration % 60
+                minutes = int(duration) // 60
+                seconds = int(duration) % 60
                 duration_str = f"{minutes}:{seconds:02d}"
             else:
                 duration_str = "N/A"
