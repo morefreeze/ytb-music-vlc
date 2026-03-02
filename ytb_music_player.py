@@ -679,12 +679,29 @@ def select_tracks_with_space(results):
         from rich.console import Console
         from rich.panel import Panel
         from rich.table import Table
-        
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
+
         console = Console()
 
         # Store selection state - default to no tracks selected
         selected = set()
         current_index = 0
+
+        # Preloading state
+        preloaded_tracks = {}
+        preloading_progress = {"current": 0, "total": len(results)}
+        preloading_active = True
+
+        def preload_track(track_info, index):
+            """Preload stream URL for a single track"""
+            video_url = track_info.get('webpage_url') or track_info.get('url')
+            if not video_url:
+                return index, None
+
+            # Simulate extraction (replace with actual extraction)
+            # For now, just mark as preloaded
+            return index, True
 
         def create_track_table():
             """Create and update the track selection table with selection column"""
@@ -700,7 +717,7 @@ def select_tracks_with_space(results):
             for i, track in enumerate(results):
                 title = track.get('title', 'Unknown Title')
                 artist = track.get('uploader', 'Unknown Artist')
-                
+
                 # Format duration
                 duration = track.get('duration')
                 if duration:
@@ -725,7 +742,7 @@ def select_tracks_with_space(results):
 
                 # Selection indicator
                 select_indicator = "[green]✓[/green]" if i in selected else "[white]□[/white]"
-                
+
                 status = ""
                 if i == current_index:
                     status = "[bold yellow]◄[/bold yellow]"  # Cursor indicator
@@ -773,8 +790,38 @@ def select_tracks_with_space(results):
             )
             console.print(footer)
 
+        # Start preloading in background
+        def start_preloading():
+            """Start preloading tracks in background"""
+            nonlocal preloading_active
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                # Submit all tasks
+                futures = []
+                for i, track in enumerate(results):
+                    future = executor.submit(preload_track, track, i)
+                    futures.append(future)
+
+                # Process completed tasks
+                for future in as_completed(futures):
+                    if not preloading_active:
+                        break
+                    index, _ = future.result()
+                    preloading_progress["current"] += 1
+
+                    # Update display with preloading progress
+                    progress_str = f"🔄 Preloading: {preloading_progress['current']}/{preloading_progress['total']} tracks..."
+                    update_display(progress_str)
+
+            preloading_active = False
+
         # Initial display
         update_display()
+
+        # Start preloading in background thread
+        import threading
+        preload_thread = threading.Thread(target=start_preloading, daemon=True)
+        preload_thread.start()
 
         # Keyboard handling
         import sys
@@ -820,8 +867,10 @@ def select_tracks_with_space(results):
             key = get_key()
 
             if key == 'q':
+                preloading_active = False
                 return None
             elif key == '\n' or key == '\r':  # Enter key for confirmation
+                preloading_active = False
                 if selected:
                     return [results[i] for i in sorted(selected)]
                 return None
