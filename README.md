@@ -27,14 +27,44 @@ Before using YouTube Music VLC Player, you need to install the following depende
 1. **Python 3.6+**: https://www.python.org/downloads/
 2. **yt-dlp**: A powerful YouTube downloader
 3. **VLC Media Player**: https://www.videolan.org/vlc/
+4. **Deno** (optional but recommended): Required for handling YouTube's EJS challenges
 
 ### Optional Dependencies
 
 - **rich**: For enhanced terminal output with colors and formatting (recommended)
+- **Deno**: JavaScript runtime for solving YouTube's EJS challenges (auto-installed by yt-dlp)
 
 ## Installation
 
 ### 1. Install Required Software
+
+#### Install Deno (recommended for EJS challenge handling)
+
+Deno is required to solve YouTube's JavaScript challenges. yt-dlp will automatically download and use it, but you can install it manually:
+
+**macOS (using Homebrew):**
+```bash
+brew install deno
+```
+
+**Linux:**
+```bash
+# Using curl
+curl -fsSL https://deno.land/install.sh | sh
+
+# Or using package manager
+sudo apt install deno  # Debian/Ubuntu
+sudo dnf install deno  # Fedora
+```
+
+**Windows:**
+```powershell
+# Using PowerShell
+irm https://deno.land/install.ps1 | iex
+```
+
+**Or let yt-dlp auto-install:**
+The player automatically uses yt-dlp's `--remote-components ejs:github` option, which downloads the necessary components automatically on first run.
 
 ### 2. Install Optional Features
 
@@ -138,8 +168,11 @@ python ytb_music_player.py --search "lofi hip hop" --no-video
 # Set custom volume
 python ytb_music_player.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --volume 75
 
-# High-quality audio
-python ytb_music_player.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --quality "bestaudio[abr>192]/bestaudio"
+# Quality options (default is bestaudio for audio-only)
+python ytb_music_player.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --quality bestaudio  # Best audio only (default)
+python ytb_music_player.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --quality best        # Best overall (video+audio)
+python ytb_music_player.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --quality worstaudio     # Worst audio (fallback for problematic videos)
+python ytb_music_player.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --quality "bestaudio[abr>192]/bestaudio"  # High-quality audio
 
 # Shuffle and repeat playlist
 python ytb_music_player.py "https://www.youtube.com/playlist?list=PLzMcBGfZo4-mP7qA9cagf68V06sko5otr" --shuffle --repeat
@@ -156,6 +189,18 @@ python ytb_music_player.py --search "Taylor Swift" --browser "chrome:Profile 2"
 
 # Use cookie file
 python ytb_music_player.py --search "Taylor Swift" --cookies ~/.config/youtube-dl/cookies.txt
+```
+
+### Troubleshooting Format Errors
+
+If you encounter "Requested format is not available" errors:
+
+```bash
+# Use worst audio quality as fallback (most likely to work)
+python ytb_music_player.py <url> -q worstaudio
+
+# Debug mode to see detailed error information
+python ytb_music_player.py <url> --debug
 ```
 
 ## Usage Examples
@@ -289,6 +334,39 @@ If you're having issues with cookie authentication:
 1. **Chrome**: Ensure Chrome is closed when using `--browser chrome`
 2. **Firefox**: Make sure Firefox is not running in private mode
 3. **Cookie Files**: Use a tool like `Get cookies.txt LOCALLY` browser extension to export cookies
+
+### EJS Challenge and Deno Troubleshooting
+
+If you encounter EJS challenge errors or issues with Deno:
+
+1. **Deno Installation**: Ensure Deno is properly installed and in your PATH
+   ```bash
+   deno --version  # Should show Deno version
+   ```
+
+2. **Auto-installation**: The player automatically uses `--remote-components ejs:github` which downloads required components on first run. This requires:
+   - Internet connection
+   - GitHub access (not blocked by firewall)
+   - Write permissions to yt-dlp's cache directory
+
+3. **Manual Deno Installation**: If auto-installation fails:
+   ```bash
+   # Install Deno manually
+   curl -fsSL https://deno.land/install.sh | sh
+
+   # Or on Windows
+   irm https://deno.land/install.ps1 | iex
+   ```
+
+4. **Proxy/VPN Issues**: If you're behind a proxy or VPN:
+   - The EJS challenge solver may not work properly
+   - Try using cookie authentication instead
+   - Consider using a VPN endpoint in a different region
+
+5. **Debug Mode**: Use `--debug` to see detailed error messages:
+   ```bash
+   python ytb_music_player.py <url> --debug
+   ```
 
 ## Contributing
 
