@@ -626,118 +626,6 @@ def handle_duplicate_file(file_path):
                 counter += 1
                 new_path = f"{base}_{counter}{ext}"
             print(f"📝 Will save as: {new_path}")
-            return new_path
-        elif choice == '3':
-            # Cancel
-            return None
-        else:
-            print("❌ Invalid choice. Please enter 1, 2, or 3.")
-
-
-def select_tracks_with_space(results):
-    """Allow user to select multiple tracks using space bar (TUI mode)"""
-    try:
-        import keyboard
-    except ImportError:
-        print("❌ keyboard module not found. Please install it with 'pip install keyboard' for space selection feature.")
-        return None
-
-    print("\n🎵 Search Results - Space Selection Mode")
-    print("-" * 80)
-    print("Use SPACE to select/deselect tracks, ENTER to confirm selection")
-    print("Press ESC to cancel and return to regular selection mode")
-    print("-" * 80)
-
-    selected = []
-    max_index = len(results)
-    current_index = 0
-
-    def draw_selection():
-        """Draw the selection interface"""
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print("\n🎵 Search Results - Space Selection Mode")
-        print("-" * 80)
-        print("Use SPACE to select/deselect tracks, ENTER to confirm selection")
-        print("Press ESC to cancel and return to regular selection mode")
-        print("-" * 80)
-        for i, result in enumerate(results):
-            title = result.get('title', 'Unknown Title')
-            channel = result.get('uploader', 'Unknown Artist')
-            duration = result.get('duration', 0)
-
-            # Format duration
-            if duration:
-                minutes = int(duration) // 60
-                seconds = int(duration) % 60
-                duration_str = f"{minutes}:{seconds:02d}"
-            else:
-                duration_str = "N/A"
-
-            # Format selection indicators
-            prefix = " "
-            if i in selected:
-                prefix = "✅"
-            if i == current_index:
-                prefix = f"[{prefix}]" if prefix == "✅" else f"[{i+1:2d}]"
-            else:
-                prefix = f" {prefix} " if prefix == "✅" else f" {i+1:2d} "
-
-            # Print track info
-            if i == current_index:
-                print(f"{prefix} 👉 {title} - {channel} ({duration_str})")
-            else:
-                print(f"{prefix}    {title} - {channel} ({duration_str})")
-        print("-" * 80)
-        print(f"Selected tracks: {len(selected)}")
-
-    draw_selection()
-
-    try:
-        while True:
-            if keyboard.is_pressed('up'):
-                current_index = max(0, current_index - 1)
-                draw_selection()
-                time.sleep(0.15)
-            elif keyboard.is_pressed('down'):
-                current_index = min(max_index - 1, current_index + 1)
-                draw_selection()
-                time.sleep(0.15)
-            elif keyboard.is_pressed('space'):
-                if current_index in selected:
-                    selected.remove(current_index)
-                else:
-                    selected.append(current_index)
-                draw_selection()
-                time.sleep(0.2)
-            elif keyboard.is_pressed('enter'):
-                if not selected:
-                    print("⚠️ No tracks selected. Please select at least one track.")
-                    time.sleep(1)
-                    continue
-                break
-            elif keyboard.is_pressed('esc'):
-                print("\n⏹️ Cancelled space selection mode")
-                return None
-            time.sleep(0.05)
-    except KeyboardInterrupt:
-        print("\n⏹️ Selection cancelled by user")
-        return None
-
-    # Return sorted selection
-    selected.sort()
-    return [results[i] for i in selected]
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description='YouTube Music Player via VLC',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  Play a YouTube Music track:
-    %(prog)s https://music.youtube.com/watch?v=abc123
-
-  Play a YouTube playlist:
     %(prog)s https://www.youtube.com/playlist?list=abc123
     %(prog)s https://music.youtube.com/playlist?list=abc123
 
@@ -756,8 +644,8 @@ Examples:
   Search YouTube including videos (will still extract audio):
     %(prog)s --search "lo-fi hip hop radio" --include-videos
 
-  Install optional TUI dependencies for space bar selection:
-    pip install keyboard
+  Install optional rich for TUI selection:
+    pip install rich readchar
 
   Play with higher quality audio:
     %(prog)s https://music.youtube.com/watch?v=abc123 --quality "bestaudio[abr>192]/bestaudio"
