@@ -15,8 +15,8 @@ A command-line tool to search, stream, and play YouTube Music using VLC media pl
 - 📱 **Cookie Support**: Use browser cookies or cookie files for premium access
 - 🔀 **Search Results Sorting**: Sort results by views, duration, or upload date
 - 💾 **Duplicate File Handling**: Smart handling of duplicate filenames when saving playlists
-- 🎯 **TUI Space Selection**: Select multiple tracks using space bar with arrow keys (optional)
-- 🛡️ **Graceful Fallback**: Automatically falls back to number-based selection when dependencies are missing
+- 🛡️ **EJS Challenge Support**: Automatically handles YouTube's EJS challenges using yt-dlp's remote components
+- 🎯 **Flexible Selection**: Select multiple tracks using comma or space-separated numbers
 
 ## Prerequisites
 
@@ -30,8 +30,7 @@ Before using YouTube Music VLC Player, you need to install the following depende
 
 ### Optional Dependencies
 
-- **rich**: For enhanced terminal output with colors and formatting
-- **keyboard**: For TUI space selection functionality (multi-track selection using space bar)
+- **rich**: For enhanced terminal output with colors and formatting (recommended)
 
 ## Installation
 
@@ -39,12 +38,7 @@ Before using YouTube Music VLC Player, you need to install the following depende
 
 ### 2. Install Optional Features
 
-For enhanced space selection functionality:
-```bash
-pip install keyboard
-```
-
-For improved terminal formatting:
+For improved terminal formatting (highly recommended):
 ```bash
 pip install rich
 ```
@@ -95,19 +89,12 @@ chmod +x ytb_music_player.py
 
 ## Quick Start
 
-### Selection Modes
+### Selection Mode
 
-**Space Selection Mode (Automatic if available)**:
-- If `keyboard` module is installed, the app automatically uses TUI selection mode
-- Use UP/DOWN arrows to navigate through results
-- Press SPACE to select/deselect tracks
-- Press ENTER to confirm your selection
-- Press ESC to cancel and return to number selection
-
-**Number Selection Mode (Default)**:
-- If `keyboard` module is not installed, use classic number-based selection
-- Enter space-separated numbers to select multiple tracks
-- Type 'all' to select all tracks
+**Number Selection Mode**:
+- Enter space-separated numbers to select multiple tracks (e.g., `1 3 5`)
+- Type `all` to select all tracks
+- Type `q` to quit
 
 ### Search and Play Music
 
@@ -184,6 +171,8 @@ When prompted, select tracks to play:
 - Enter `all` to play all search results
 - Enter `q` to quit
 
+Note: You can also use comma-separated numbers (e.g., `1,3,5`) for selection.
+
 ### Create and Manage Playlists
 
 ```bash
@@ -216,6 +205,8 @@ usage: ytb_music_player.py [-h] [-s SEARCH] [--load-playlist LOAD_PLAYLIST]
                            [--playlist-end PLAYLIST_END]
                            [--save-playlist SAVE_PLAYLIST]
                            [--playlist-format {m3u,xspf}]
+                           [--sort {views,duration,upload_date}]
+                           [--include-videos] [--debug]
                            [url]
 
 YouTube Music Player via VLC
@@ -240,9 +231,10 @@ options:
   --fullscreen          Start VLC in fullscreen mode (when video is available)
   --volume VOLUME       Set initial volume (0-100)
   --max-results MAX_RESULTS
-                        Maximum search results to show (default: 15)
+                        Maximum search results to show (default: 10)
   --list-formats        List available formats and exit
-  --shuffle             Shuffle playlist before playing
+  --shuffle             Shuffle playlist playback order after selection and
+                        sorting
   --repeat              Repeat playlist playback
   --playlist-start PLAYLIST_START
                         Start playlist at specified index (0-based)
@@ -253,6 +245,13 @@ options:
   --playlist-format {m3u,xspf}
                         Playlist format for saving or temporary playlists
                         (default: xspf)
+  --sort {views,duration,upload_date}
+                        Sort search results by specified field (views: highest
+                        to lowest, duration: longest to shortest, upload_date:
+                        newest to oldest)
+  --include-videos      Include YouTube videos in search results (not just
+                        music tracks). Will still extract audio for playback.
+  --debug               Enable debug mode for yt-dlp.
 ```
 
 ## Troubleshooting
@@ -276,6 +275,12 @@ options:
 
 4. **yt-dlp Not Found Error**
    **Solution**: Install yt-dlp using pip or package manager
+
+5. **EJS Challenge Errors**
+   The player automatically handles YouTube's EJS challenges using yt-dlp's remote components feature. If you encounter issues:
+   - Ensure you have the latest version of yt-dlp: `pip install --upgrade yt-dlp`
+   - Check your internet connection (remote components are downloaded from GitHub)
+   - Try using cookie authentication for better success rates
 
 ### Cookie Troubleshooting
 
