@@ -752,7 +752,10 @@ def select_tracks_with_space(results):
                 return ''
             finally:
                 # Restore terminal settings
-                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                try:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                except:
+                    pass
 
         # Main interaction loop
         while True:
