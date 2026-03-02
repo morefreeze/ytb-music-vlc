@@ -953,16 +953,8 @@ Examples:
                 SimpleColor.print_magenta(views_str)
             print()
 
-        # Check if keyboard module is available
-        has_keyboard = False
-        try:
-            import keyboard
-            has_keyboard = True
-        except ImportError:
-            pass
-
-        # Try to use TUI space selection mode first if available
-        if has_keyboard:
+        # Check if rich is available for TUI
+        if has_rich:
             input("\n--- Press Enter to continue to interactive selection ---")
             selected_tracks = select_tracks_with_space(results)
             if selected_tracks and len(selected_tracks) > 0:
