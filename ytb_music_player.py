@@ -515,7 +515,43 @@ def play_playlist_with_vlc(tracks, args, vlc_args):
 
     # Pre-extract stream URLs
     print("\n🔄 Pre-extracting stream URLs for all tracks...")
-    tracks_with_streams = pre_extract_stream_urls(tracks, args)
+
+    # Use ThreadPoolExecutor for parallel stream URL extraction
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def extract_single_track(track_info):
+        """Extract stream URL for a single track"""
+        video_url = track_info.get('webpage_url') or track_info.get('url')
+        if not video_url:
+            return None
+
+        stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser)
+        if stream_url:
+            track_info['stream_url'] = stream_url
+            return track_info
+        return None
+
+    # Extract stream URLs in parallel
+    tracks_with_streams = []
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        # Submit all tasks
+        future_to_track = {executor.submit(extract_single_track, track): track for track in tracks}
+
+        # Process completed tasks
+        for i, future in enumerate(as_completed(future_to_track), 1):
+            result = future.result()
+            if result:
+                tracks_with_streams.append(result)
+                title = result.get('title', 'Unknown Title')
+                if has_rich:
+                    console = Console()
+                    console.print(f"   ✅ [green]{title}[/green]")
+                else:
+                    print(f"   ✅ ", end="")
+                    SimpleColor.print_green(title)
+
+            # Show progress
+            print(f"🔍 Extracting stream URL for track {i}/{len(tracks)}...")
 
     if not tracks_with_streams:
         print("❌ No valid tracks to play")
