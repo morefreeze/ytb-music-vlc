@@ -6,5 +6,4 @@
 # yt-dlp>=2024.0.0
 
 # Optional dependencies
-keyboard>=0.13.5  # For TUI space selection feature
 rich>=13.7.0      # For enhanced terminal output formatting
