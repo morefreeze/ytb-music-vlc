@@ -53,18 +53,14 @@ class SimpleColor:
         print(f"{SimpleColor.MAGENTA}{text}{SimpleColor.RESET}")
 
 def get_ytdlp_path():
-    """Find yt-dlp executable, prioritizing the one in the current Python environment."""
-    # 1. Prioritize the executable in the same directory as the Python interpreter
-    candidate = os.path.join(os.path.dirname(sys.executable), 'yt-dlp')
-    if os.path.exists(candidate) and os.access(candidate, os.X_OK):
-        return candidate
-
-    # 2. Fallback to searching the system's PATH
+    """Find yt-dlp executable"""
     for path in os.environ['PATH'].split(os.pathsep):
         candidate = os.path.join(path, 'yt-dlp')
         if os.path.exists(candidate) and os.access(candidate, os.X_OK):
             return candidate
-            
+    candidate = os.path.join(os.path.dirname(sys.executable), 'yt-dlp')
+    if os.path.exists(candidate) and os.access(candidate, os.X_OK):
+        return candidate
     return None
 
 def get_vlc_path():
@@ -84,7 +80,7 @@ def get_vlc_path():
             return candidate
     return None
 
-def extract_stream_url(url, quality='bestaudio', cookies=None):
+def extract_stream_url(url, quality='bestaudio', cookies=None, browser=None):
     """Extract stream URL using yt-dlp"""
     ytdlp = get_ytdlp_path()
     if not ytdlp:
@@ -100,7 +96,13 @@ def extract_stream_url(url, quality='bestaudio', cookies=None):
         url
     ]
 
-    if cookies:
+    if browser:
+        browser_parts = browser.split(':', 1)
+        if len(browser_parts) == 2:
+            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
+        else:
+            cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
         cmd.extend(['--cookies', cookies])
 
     try:
@@ -113,7 +115,7 @@ def extract_stream_url(url, quality='bestaudio', cookies=None):
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return None
 
-def extract_video_info(url, cookies=None):
+def extract_video_info(url, cookies=None, browser=None):
     """Extract video metadata using yt-dlp"""
     ytdlp = get_ytdlp_path()
     if not ytdlp:
@@ -128,7 +130,13 @@ def extract_video_info(url, cookies=None):
         url
     ]
 
-    if cookies:
+    if browser:
+        browser_parts = browser.split(':', 1)
+        if len(browser_parts) == 2:
+            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
+        else:
+            cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
         cmd.extend(['--cookies', cookies])
 
     try:
@@ -175,7 +183,7 @@ def play_with_vlc(stream_url, video_title, vlc_args=None):
         print(f"❌ Error playing stream: {e}", file=sys.stderr)
         return False
 
-def search_music(query, max_results=5, cookies=None, include_videos=False, debug=False):
+def search_music(query, max_results=5, cookies=None, browser=None, include_videos=False):
     """Search YouTube Music and return results"""
     import time
     start_time = time.time()
@@ -202,30 +210,28 @@ def search_music(query, max_results=5, cookies=None, include_videos=False, debug
         '--buffer-size', '16K'
     ]
 
-    if debug:
-        cmd.append('--verbose')
-
     # Use consistent format for both search types
     cmd.extend([f'ytsearch{max_results}:{query}', '--default-search', 'ytsearch'])
 
-    if cookies:
+    if browser:
+        browser_parts = browser.split(':', 1)
+        if len(browser_parts) == 2:
+            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
+        else:
+            cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
         cmd.extend(['--cookies', cookies])
 
     try:
         print(f"📡 Searching YouTube Music (query: '{query}', max_results: {max_results})...")
 
-        if debug:
-            print(f"ℹ️ Executing command: {' '.join(cmd)}")
-        
+        print(f"ℹ️ Executing command: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
         # Print debug output
-        if debug and result.stderr:
-            print(f"--- yt-dlp debug output (stderr) ---\n{result.stderr}\n------------------------------------")
-        
         if result.returncode != 0:
             print(f"⚠️ Command returned non-zero exit code: {result.returncode}")
-            if not debug and result.stderr:
+            if result.stderr:
                 print(f"ℹ️ Stderr output: {result.stderr[:500]}...")
 
         # ytsearch returns JSON objects, one per line
@@ -263,7 +269,7 @@ def search_music(query, max_results=5, cookies=None, include_videos=False, debug
         print(f"❌ Unexpected error: {e}", file=sys.stderr)
         return None
 
-def extract_playlist_urls(playlist_url, cookies=None):
+def extract_playlist_urls(playlist_url, cookies=None, browser=None):
     """Extract all video URLs from a playlist"""
     ytdlp = get_ytdlp_path()
     if not ytdlp:
@@ -278,7 +284,13 @@ def extract_playlist_urls(playlist_url, cookies=None):
         '--no-playlist'
     ]
 
-    if cookies:
+    if browser:
+        browser_parts = browser.split(':', 1)
+        if len(browser_parts) == 2:
+            cmd.extend(['--cookies-from-browser', f'{browser_parts[0]}:{browser_parts[1].strip()}'])
+        else:
+            cmd.extend(['--cookies-from-browser', browser])
+    elif cookies:
         cmd.extend(['--cookies', cookies])
 
     cmd.append(playlist_url)
@@ -462,7 +474,7 @@ def pre_extract_stream_urls(tracks, args):
             continue
 
         # Extract stream URL
-        stream_url = extract_stream_url(video_url, args.quality, args.cookies)
+        stream_url = extract_stream_url(video_url, args.quality, args.cookies, args.browser)
 
         if stream_url:
             # Add stream URL to track info
@@ -735,7 +747,11 @@ Examples:
     %(prog)s https://music.youtube.com/watch?v=abc123 --quality "bestaudio[abr>192]/bestaudio"
 
   Play with cookies for premium access:
-    %(prog)s https://music.youtube.com/watch?v=abc123 --cookies /path/to/your/cookies.txt
+    %(prog)s https://music.youtube.com/watch?v=abc123 --cookies ~/.config/youtube-dl/cookies.txt
+
+  Play using Chrome browser cookies:
+    %(prog)s https://music.youtube.com/watch?v=abc123 --browser chrome
+    %(prog)s https://music.youtube.com/watch?v=abc123 --browser "chrome:Profile 5"
         """
     )
 
@@ -747,7 +763,8 @@ Examples:
 
     parser.add_argument('-q', '--quality', default='bestaudio',
                        help='Stream quality preference (default: bestaudio)')
-    parser.add_argument('-c', '--cookies', help='Path to cookies.txt file for premium access')
+    parser.add_argument('-c', '--cookies', help='Path to cookies file for premium access')
+    parser.add_argument('-b', '--browser', help='Extract cookies from browser (e.g., "chrome", "firefox:Profile 5")')
     parser.add_argument('--no-video', action='store_true',
                        help='Force audio-only playback even if video is available')
     parser.add_argument('--fullscreen', action='store_true',
@@ -772,8 +789,6 @@ Examples:
                        help='Sort search results by specified field (views: highest to lowest, duration: longest to shortest, upload_date: newest to oldest)')
     parser.add_argument('--include-videos', action='store_true',
                        help='Include YouTube videos in search results (not just music tracks). Will still extract audio for playback.')
-    parser.add_argument('--debug', action='store_true',
-                       help='Enable debug mode for yt-dlp.')
 
     args = parser.parse_args()
 
@@ -814,7 +829,7 @@ Examples:
         pass
     elif args.url and ('playlist?list=' in args.url or '/playlist?' in args.url):
         print(f"📋 Fetching playlist: {args.url}")
-        playlist_videos = extract_playlist_urls(args.url, args.cookies)
+        playlist_videos = extract_playlist_urls(args.url, args.cookies, args.browser)
         if not playlist_videos:
             print("❌ Failed to extract playlist")
             sys.exit(1)
@@ -844,10 +859,10 @@ Examples:
     elif args.search:
         if args.include_videos:
             print(f"🔍 Searching YouTube (including videos) for: {args.search}")
-            results = search_music(args.search, args.max_results, args.cookies, include_videos=True, debug=args.debug)
+            results = search_music(args.search, args.max_results, args.cookies, args.browser, include_videos=True)
         else:
             print(f"🔍 Searching YouTube Music for: {args.search}")
-            results = search_music(args.search, args.max_results, args.cookies, debug=args.debug)
+            results = search_music(args.search, args.max_results, args.cookies, args.browser)
 
         if not results:
             print("❌ No results found")
@@ -1099,12 +1114,12 @@ Examples:
             print(f"\n💾 Saving single track as playlist to {args.save_playlist}")
 
             # Get video info for metadata
-            info = extract_video_info(url, args.cookies)
+            info = extract_video_info(url, args.cookies, args.browser)
             if not info:
                 info = {'title': 'Unknown Title', 'webpage_url': url}
 
             # Add stream URL to info
-            stream_url = extract_stream_url(url, args.quality, args.cookies)
+            stream_url = extract_stream_url(url, args.quality, args.cookies, args.browser)
             if not stream_url:
                 print("❌ Failed to extract stream URL")
                 sys.exit(1)
@@ -1134,14 +1149,14 @@ Examples:
             # Normal single track playback
             # Extract stream URL
             print("🔍 Extracting stream URL...")
-            stream_url = extract_stream_url(url, args.quality, args.cookies)
+            stream_url = extract_stream_url(url, args.quality, args.cookies, args.browser)
 
             if not stream_url:
                 print("❌ Failed to extract stream URL")
                 sys.exit(1)
 
             # Get video title for VLC metadata
-            info = extract_video_info(url, args.cookies)
+            info = extract_video_info(url, args.cookies, args.browser)
             video_title = info.get('title', 'YouTube Music') if info else 'YouTube Music'
 
             # Print with appropriate coloring
